@@ -56,6 +56,7 @@
 #include <xc.h>
 
 #define _XTAL_FREQ 1000000
+#define OSCS 3
 
 
 const unsigned short lookup[128] = {
@@ -93,6 +94,46 @@ void PWM1_Initialize(void) {
  PWM1CONbits.LD = 1;
 }
 
+void PWM2_Initialize(void) {
+ PWM2ERS = 0x00; // PWMERS External Reset Disabled;
+ PWM2CLK = 0x02; // PWMCLK FOSC;
+ PWM2LDS = 0x00; // PWMLDS Autoload disabled;
+ PWM2PRL = 0xFF;
+ PWM2PRH = 0x88;
+ PWM2CPRE = 0x00; // PWMCPRE No prescale;
+ PWM2PIPOS = 0x00; // PWMPIPOS No postscale;
+ PWM2GIR = 0x00; // PWMS1P2IF PWM2 output match did not occur;
+ // PWMS1P1IF PWM1 output match did not occur;
+ PWM2GIE = 0x00; // PWMS1P2IE disabled; PWMS1P1IE disabled;
+ PWM2S1CFG = 0x00; // PWMPOL2 disabled; PWMPOL1 disabled; PWMPPEN
+ // disabled; PWMMODE PWMOUT1,PWMOUT2 in left
+ // aligned mode
+ PWM2S1P1 = 0x8000;
+ PWM2CON = 0x80; // PWMEN enabled; PWMLD disabled; PWMERSPOL
+ // disabled; PWMERSNOW disabled;
+ PWM2CONbits.LD = 1;
+}
+
+void PWM3_Initialize(void) {
+ PWM3ERS = 0x00; // PWMERS External Reset Disabled;
+ PWM3CLK = 0x02; // PWMCLK FOSC;
+ PWM3LDS = 0x00; // PWMLDS Autoload disabled;
+ PWM3PRL = 0xFF;
+ PWM3PRH = 0x88;
+ PWM3CPRE = 0x00; // PWMCPRE No prescale;
+ PWM3PIPOS = 0x00; // PWMPIPOS No postscale;
+ PWM3GIR = 0x00; // PWMS1P2IF PWM2 output match did not occur;
+ // PWMS1P1IF PWM1 output match did not occur;
+ PWM3GIE = 0x00; // PWMS1P2IE disabled; PWMS1P1IE disabled;
+ PWM3S1CFG = 0x00; // PWMPOL2 disabled; PWMPOL1 disabled; PWMPPEN
+ // disabled; PWMMODE PWMOUT1,PWMOUT2 in left
+ // aligned mode
+ PWM3S1P1 = 0x8000;
+ PWM3CON = 0x80; // PWMEN enabled; PWMLD disabled; PWMERSPOL
+ // disabled; PWMERSNOW disabled;
+ PWM3CONbits.LD = 1;
+}
+
 void init_uart(void) {
   SP1BRG = 1;                        // 3 at 8Mhz, 9 at 20Mhz (from 4 to 10)
   SP1BRGH = 0;
@@ -119,26 +160,117 @@ char getch() {
     return data;
 }
 
-unsigned char midi;
-unsigned char note;
-unsigned char velocity;
-unsigned short pwm;
-unsigned short toloadnote = 0;
-unsigned short toloadpwm = 0;
+// note 1
+unsigned short toloadnote[4] = {0, 0, 0, 0};
+unsigned short toloadpwm[4] = {0, 0, 0, 0};
+unsigned short loadednote[4] = {0, 0, 0, 0};
+unsigned char note[4] = {0, 0, 0, 0};
+unsigned char gate[4] = {0, 0, 0, 0};
 
-inline void load() {
+unsigned char midi;
+unsigned char inote;
+unsigned char velocity;
+unsigned char pwm = 128;
+unsigned char pwmold = 128;
+
+/*
+void load1() {
   if (!PWM1CONbits.LD) {
-    PWM1PR = toloadnote;
-    PWM1S1P1 = toloadpwm;
+    if (toloadnote1) {
+        PWM1PR = toloadnote1;
+        loadednote1 = toloadnote1;
+    }
+    if (toloadpwm1) PWM1S1P1 = toloadpwm1;
     PWM1CONbits.LD = 1;
-    toloadnote = 0;
+    toloadnote1 = 0;
+    toloadpwm1 = 0;
   }
 }
+*/
 
+inline void load1() {
+    if (PWM1CONbits.LD) return;
+    if ((!toloadnote[0]) && (!toloadpwm[0])) return;
+    if (toloadnote[0]) {
+        PWM1PR = toloadnote[0];
+        loadednote[0] = toloadnote[0];
+    }
+    if (toloadpwm[0]) PWM1S1P1 = toloadpwm[0];
+    toloadnote[0] = 0;
+    toloadpwm[0] = 0;
+    PWM1CONbits.LD = 1;
+}
+
+inline void load2() {
+    if (PWM2CONbits.LD) return;
+    if ((!toloadnote[1]) && (!toloadpwm[1])) return;
+    if (toloadnote[1]) {
+        PWM2PR = toloadnote[1];
+        loadednote[1] = toloadnote[1];
+    }
+    if (toloadpwm[1]) PWM2S1P1 = toloadpwm[1];
+    toloadnote[1] = 0;
+    toloadpwm[1] = 0;
+    PWM2CONbits.LD = 1;
+}
+
+inline void load3() {
+    if (PWM3CONbits.LD) return;
+    if ((!toloadnote[2]) && (!toloadpwm[2])) return;
+    if (toloadnote[2]) {
+        PWM3PR = toloadnote[2];
+        loadednote[2] = toloadnote[2];
+    }
+    if (toloadpwm[2]) PWM3S1P1 = toloadpwm[2];
+    toloadnote[2] = 0;
+    toloadpwm[2] = 0;
+    PWM3CONbits.LD = 1;
+}
+
+inline void load4() {
+    if (PWM4CONbits.LD) return;
+    if ((!toloadnote[3]) && (!toloadpwm[3])) return;
+    if (toloadnote[3]) {
+        PWM4PR = toloadnote[3];
+        loadednote[3] = toloadnote[3];
+    }
+    if (toloadpwm[3]) PWM4S1P1 = toloadpwm[3];
+    toloadnote[3] = 0;
+    toloadpwm[3] = 0;
+    PWM4CONbits.LD = 1;
+}
+
+unsigned short compute_pwm(unsigned short max) {
+  if (pwm == 0) return 0;
+  if (pwm == 255) return max / 2;
+  unsigned short total = 0;
+  unsigned short current = max / 4;
+  if (pwm & 128) total += current;
+  current /= 2;
+  if (pwm & 64) total += current;
+  current /= 2;
+  if (pwm & 32) total += current;
+  current /= 2;
+  if (pwm & 16) total += current;
+  current /= 2;
+  if (pwm & 8) total += current;
+  current /= 2;
+  if (!current) current = 1;
+  if (pwm & 4) total += current;
+  current /= 2;
+  if (!current) current = 1;
+  if (pwm & 2) total += current;
+  current /= 2;
+  if (!current) current = 1;
+  if (pwm & 1) total += current;
+  return total;
+}
 
 void main(void) {
     init_uart();
     PWM1_Initialize();
+    PWM2_Initialize();
+    PWM3_Initialize();
     PORTA = 0x00;
     PORTC = 0x00;
     LATA = 0x00;
@@ -146,8 +278,11 @@ void main(void) {
     ANSELA = 0x00;
     ANSELC = 0x00;
     TRISA = 0x00;
+    TRISB = 0x00;
     TRISC = 0x00;
     RC4PPS = 0x0B;
+    RB4PPS = 0x0D;
+    RC5PPS = 0x0F;
     
     TRISCbits.TRISC7 = 1;  // RX
     TRISAbits.TRISA0 = 1;  // Potentiometer
@@ -157,33 +292,52 @@ void main(void) {
     ADCON0bits.IC = 0; // Regular mode
     ADCON0bits.ON = 1; // Turn ADC on.
     ANSELAbits.ANSELA0 = 1;
-    
-    PORTCbits.RC3 = 1;
+    ADPCH = 0x00; //RA0 is positive input
+      
+    // PORTCbits.RC3 = 1;  // LED on
 
-    while(1) {    
-      ADPCH = 0x00; //RA0 is positive input
-      ADCON0bits.GO = 1; //Start conversion
-      while (ADCON0bits.GO); //Wait for conversion done
-      note = ADRESH;
-      note = note / 2;
-      toloadnote = lookup[note];
-      toloadpwm = toloadnote / 2;
-      load();
-    }      
     while(1) {
-        midi = getch();
-        if (midi == 0x99 || midi == 0x92) {
-            PORTCbits.RC3 = 0;
-            note = getch();
-            velocity = getch();
-            if (velocity > 0) {
-                toloadnote = lookup[note];
-                toloadpwm = toloadnote / 2;
+      ADCON0bits.GO = 1; //Start conversion
+      midi = getch();
+      // TODO(add midi off check)
+      if (midi == 0x99 || midi == 0x92) {
+        inote = getch();
+        velocity = getch();
+        if (velocity > 0) {
+            if ((inote != note[0]) && (inote != note[1]) && (inote != note[2])
+                    && (inote != note[3])) {
+                for (unsigned char i = 0; i < OSCS; i++) {
+                    if (!gate[i]) {
+                        note[i] = inote;
+                        gate[i] = 1;
+                        toloadnote[i] = lookup[inote];
+                        toloadpwm[i] = compute_pwm(toloadnote[i]);
+                        break;
+                    }
+                }
+            }
+        } else {
+            for (unsigned char i = 0; i < OSCS; i++) {
+                if (inote == note[i]) {
+                    note[i] = 0;
+                    gate[i] = 0;
+                }
             }
         }
-        if (toloadnote) {
-          load();
-        }
+      }
+      load1();
+      load2();
+      load3();
+      //load4();
+      while (ADCON0bits.GO);  // Should already be done, but let's make sure.
+      pwm = ADRESH;
+      if (pwm != pwmold) {
+          for (unsigned char i = 0; i < OSCS; i++) {
+              toloadpwm[i] = compute_pwm(loadednote[i]);
+          }
+          pwmold = pwm;
+      }
     }
     return;
 }
+
