@@ -56,7 +56,7 @@
 #include <xc.h>
 
 #define _XTAL_FREQ 1000000
-#define OSCS 3
+#define OSCS 4
 
 
 const unsigned short lookup[128] = {
@@ -78,8 +78,7 @@ void PWM1_Initialize(void) {
  PWM1ERS = 0x00; // PWMERS External Reset Disabled;
  PWM1CLK = 0x02; // PWMCLK FOSC;
  PWM1LDS = 0x00; // PWMLDS Autoload disabled;
- PWM1PRL = 0xFF;
- PWM1PRH = 0xFF;
+ PWM1PR = 0x0000;
  PWM1CPRE = 0x00; // PWMCPRE No prescale;
  PWM1PIPOS = 0x00; // PWMPIPOS No postscale;
  PWM1GIR = 0x00; // PWMS1P2IF PWM2 output match did not occur;
@@ -88,7 +87,7 @@ void PWM1_Initialize(void) {
  PWM1S1CFG = 0x00; // PWMPOL2 disabled; PWMPOL1 disabled; PWMPPEN
  // disabled; PWMMODE PWMOUT1,PWMOUT2 in left
  // aligned mode
- PWM1S1P1 = 0x8000;
+ PWM1S1P1 = 0x0000;
  PWM1CON = 0x80; // PWMEN enabled; PWMLD disabled; PWMERSPOL
  // disabled; PWMERSNOW disabled;
  PWM1CONbits.LD = 1;
@@ -98,8 +97,7 @@ void PWM2_Initialize(void) {
  PWM2ERS = 0x00; // PWMERS External Reset Disabled;
  PWM2CLK = 0x02; // PWMCLK FOSC;
  PWM2LDS = 0x00; // PWMLDS Autoload disabled;
- PWM2PRL = 0xFF;
- PWM2PRH = 0x88;
+ PWM2PR = 0x0000;
  PWM2CPRE = 0x00; // PWMCPRE No prescale;
  PWM2PIPOS = 0x00; // PWMPIPOS No postscale;
  PWM2GIR = 0x00; // PWMS1P2IF PWM2 output match did not occur;
@@ -108,7 +106,7 @@ void PWM2_Initialize(void) {
  PWM2S1CFG = 0x00; // PWMPOL2 disabled; PWMPOL1 disabled; PWMPPEN
  // disabled; PWMMODE PWMOUT1,PWMOUT2 in left
  // aligned mode
- PWM2S1P1 = 0x8000;
+ PWM2S1P1 = 0x0000;
  PWM2CON = 0x80; // PWMEN enabled; PWMLD disabled; PWMERSPOL
  // disabled; PWMERSNOW disabled;
  PWM2CONbits.LD = 1;
@@ -118,8 +116,7 @@ void PWM3_Initialize(void) {
  PWM3ERS = 0x00; // PWMERS External Reset Disabled;
  PWM3CLK = 0x02; // PWMCLK FOSC;
  PWM3LDS = 0x00; // PWMLDS Autoload disabled;
- PWM3PRL = 0xFF;
- PWM3PRH = 0x88;
+ PWM3PR = 0x0000;
  PWM3CPRE = 0x00; // PWMCPRE No prescale;
  PWM3PIPOS = 0x00; // PWMPIPOS No postscale;
  PWM3GIR = 0x00; // PWMS1P2IF PWM2 output match did not occur;
@@ -128,10 +125,29 @@ void PWM3_Initialize(void) {
  PWM3S1CFG = 0x00; // PWMPOL2 disabled; PWMPOL1 disabled; PWMPPEN
  // disabled; PWMMODE PWMOUT1,PWMOUT2 in left
  // aligned mode
- PWM3S1P1 = 0x8000;
+ PWM3S1P1 = 0x0000;
  PWM3CON = 0x80; // PWMEN enabled; PWMLD disabled; PWMERSPOL
  // disabled; PWMERSNOW disabled;
  PWM3CONbits.LD = 1;
+}
+
+void PWM4_Initialize(void) {
+ PWM4ERS = 0x00; // PWMERS External Reset Disabled;
+ PWM4CLK = 0x02; // PWMCLK FOSC;
+ PWM4LDS = 0x00; // PWMLDS Autoload disabled;
+ PWM4PR = 0x0000;
+ PWM4CPRE = 0x00; // PWMCPRE No prescale;
+ PWM4PIPOS = 0x00; // PWMPIPOS No postscale;
+ PWM4GIR = 0x00; // PWMS1P2IF PWM2 output match did not occur;
+ // PWMS1P1IF PWM1 output match did not occur;
+ PWM4GIE = 0x00; // PWMS1P2IE disabled; PWMS1P1IE disabled;
+ PWM4S1CFG = 0x00; // PWMPOL2 disabled; PWMPOL1 disabled; PWMPPEN
+ // disabled; PWMMODE PWMOUT1,PWMOUT2 in left
+ // aligned mode
+ PWM4S1P1 = 0x0000;
+ PWM4CON = 0x80; // PWMEN enabled; PWMLD disabled; PWMERSPOL
+ // disabled; PWMERSNOW disabled;
+ PWM4CONbits.LD = 1;
 }
 
 void init_uart(void) {
@@ -146,21 +162,17 @@ void init_uart(void) {
   RC1STAbits.CREN = 1;               // enable receiver
   BAUD1CONbits.BRG16 = 1;            // Set at 1 Mhz with SP1BRG at 1
   BAUD1CONbits.ABDEN = 0;
+  
+  // Setup interrupt
+  PIE4bits.RC1IE = 1;
+  INTCONbits.PEIE = 1;
+  INTCONbits.GIE = 1;
 }
 
-char getch() {
-    unsigned char data;
-    while(!PIR4bits.RC1IF) {
-    }
-    data = RC1REG;
-    if (RC1STAbits.OERR) {
-        RC1STAbits.CREN = 0;
-        RC1STAbits.CREN = 1;
-    }
-    return data;
-}
-
-// note 1
+unsigned char queue[16];
+unsigned char queueread = 0;
+unsigned char queuewrite = 0;
+unsigned char queuesize = 0;
 unsigned short toloadnote[4] = {0, 0, 0, 0};
 unsigned short toloadpwm[4] = {0, 0, 0, 0};
 unsigned short loadednote[4] = {0, 0, 0, 0};
@@ -169,24 +181,33 @@ unsigned char gate[4] = {0, 0, 0, 0};
 
 unsigned char midi;
 unsigned char inote;
+unsigned char ogate = 0;
 unsigned char velocity;
 unsigned char pwm = 128;
 unsigned char pwmold = 128;
+unsigned char clean = 0;
 
-/*
-void load1() {
-  if (!PWM1CONbits.LD) {
-    if (toloadnote1) {
-        PWM1PR = toloadnote1;
-        loadednote1 = toloadnote1;
-    }
-    if (toloadpwm1) PWM1S1P1 = toloadpwm1;
-    PWM1CONbits.LD = 1;
-    toloadnote1 = 0;
-    toloadpwm1 = 0;
-  }
+__interrupt() void incoming() {
+    queue[queuewrite & 15] = RC1REG;
+    queuewrite++;
+    queuesize++;
+    if (RC1STAbits.OERR) {
+        PORTCbits.RC0 = 1;
+        RC1STAbits.CREN = 0;
+        RC1STAbits.CREN = 1;
+    }    
 }
-*/
+
+char getch() {
+    unsigned char data;
+    
+    while(!queuesize) {
+    }
+    data = queue[queueread & 15];
+    queueread++;
+    queuesize--;
+    return data;
+}
 
 inline void load1() {
     if (PWM1CONbits.LD) return;
@@ -240,6 +261,18 @@ inline void load4() {
     PWM4CONbits.LD = 1;
 }
 
+inline void clean_oscs() {
+    PWM2PR = 1;
+    PWM2S1P1 = 1;
+    PWM2CONbits.LD = 1;
+    PWM3PR = 1;
+    PWM3S1P1 = 1;
+    PWM3CONbits.LD = 1;
+    PWM4PR = 1;
+    PWM4S1P1 = 1;
+    PWM4CONbits.LD = 1;
+}
+
 unsigned short compute_pwm(unsigned short max) {
   if (pwm == 0) return 0;
   if (pwm == 255) return max / 2;
@@ -271,6 +304,7 @@ void main(void) {
     PWM1_Initialize();
     PWM2_Initialize();
     PWM3_Initialize();
+    PWM4_Initialize();
     PORTA = 0x00;
     PORTC = 0x00;
     LATA = 0x00;
@@ -283,6 +317,8 @@ void main(void) {
     RC4PPS = 0x0B;
     RB4PPS = 0x0D;
     RC5PPS = 0x0F;
+    RC6PPS = 0x11;
+    RC0PPS = 0x00;
     
     TRISCbits.TRISC7 = 1;  // RX
     TRISAbits.TRISA0 = 1;  // Potentiometer
@@ -293,17 +329,20 @@ void main(void) {
     ADCON0bits.ON = 1; // Turn ADC on.
     ANSELAbits.ANSELA0 = 1;
     ADPCH = 0x00; //RA0 is positive input
-      
-    // PORTCbits.RC3 = 1;  // LED on
-
+    ADCON0bits.GO = 1; //Start conversion
+    
     while(1) {
-      ADCON0bits.GO = 1; //Start conversion
-      midi = getch();
-      // TODO(add midi off check)
-      if (midi == 0x99 || midi == 0x92) {
-        inote = getch();
-        velocity = getch();
-        if (velocity > 0) {
+      if (queuesize > 2) {
+        midi = getch();
+        // TODO(add midi off check)
+        if (midi == 0x99 || midi == 0x92) {
+          inote = getch();
+          velocity = getch();
+          if (velocity > 0) {
+            if (!clean) {
+                clean_oscs();
+                clean = 1;
+            }
             if ((inote != note[0]) && (inote != note[1]) && (inote != note[2])
                     && (inote != note[3])) {
                 for (unsigned char i = 0; i < OSCS; i++) {
@@ -316,26 +355,47 @@ void main(void) {
                     }
                 }
             }
-        } else {
+          } else {
             for (unsigned char i = 0; i < OSCS; i++) {
                 if (inote == note[i]) {
                     note[i] = 0;
                     gate[i] = 0;
                 }
             }
+          }
         }
       }
       load1();
       load2();
       load3();
-      //load4();
-      while (ADCON0bits.GO);  // Should already be done, but let's make sure.
-      pwm = ADRESH;
-      if (pwm != pwmold) {
-          for (unsigned char i = 0; i < OSCS; i++) {
-              toloadpwm[i] = compute_pwm(loadednote[i]);
+      load4();
+      PORTCbits.RC0 = gate[0];
+      PORTCbits.RC1 = gate[1];
+      PORTCbits.RC2 = gate[2];
+      PORTCbits.RC3 = gate[3];
+      if (!ogate) {
+        if (gate[0] || gate[1] || gate[2] || gate[3]) {
+            if (!toloadnote[0] && !toloadnote[1] && !toloadnote[2] && !toloadnote[3]) {
+              ogate = 1;
+              PORTBbits.RB5 = 1;
+            }
+        }
+      } else {
+          if (!gate[0] && !gate[1] && !gate[2] && !gate[3]) {
+              PORTBbits.RB5 = 0;
+              ogate = 0;
+              clean = 0;
           }
-          pwmold = pwm;
+      }
+      if (!ADCON0bits.GO) {
+        pwm = ADRESH;
+        if (pwm != pwmold) {
+            for (unsigned char i = 0; i < OSCS; i++) {
+              toloadpwm[i] = compute_pwm(loadednote[i]);
+            }
+            pwmold = pwm;
+        }
+        ADCON0bits.GO = 1; //Start conversion
       }
     }
     return;
