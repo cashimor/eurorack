@@ -57,6 +57,11 @@
 #define _XTAL_FREQ 32000000
 #define CHARGE_DELAY 10
 
+// These are the different types of keyboards
+#define OCTAVE_SWITCH
+//#define OCTAVE_1
+
+
 unsigned char count = 0;
 
 void PWM1_Initialize(void) {
@@ -110,6 +115,40 @@ void init_uart(void) {
   BAUD1CONbits.BRG16 = 0;            // Set at 1 Mhz with SP1BRG at 1
   BAUD1CONbits.ABDEN = 0;
   RB5PPS = 0x13;
+  TRISCbits.TRISC7 = 1;                 // RX
+  
+  // Setup interrupt for input
+  PIE4bits.RC1IE = 1;
+  INTCONbits.PEIE = 1;
+  INTCONbits.GIE = 1;
+
+}
+
+unsigned char queue[16];
+unsigned char queueread = 0;
+unsigned char queuewrite = 0;
+unsigned char queuesize = 0;
+
+__interrupt() void incoming() {
+    queue[queuewrite & 15] = RC1REG;
+    queuewrite++;
+    queuesize++;
+    if (RC1STAbits.OERR) {
+        PORTCbits.RC0 = 1;
+        RC1STAbits.CREN = 0;
+        RC1STAbits.CREN = 1;
+    }    
+}
+
+char getch() {
+    unsigned char data;
+
+    while(!queuesize) {
+    }
+    data = queue[queueread & 15];
+    queueread++;
+    queuesize--;
+    return data;
 }
 
 void putch(unsigned char data) {
@@ -121,92 +160,96 @@ void putch(unsigned char data) {
 unsigned int sentkeys = 0;
 unsigned int oldkeys = 0;
 unsigned int keys = 0;
+unsigned int same = 0;
 unsigned char octave = 60;
+unsigned char msg;
 
-void on(unsigned int which, unsigned char note) {
-    if (keys & which) return;
-    keys |= which;
+void noteon(unsigned char note) {
     if (note < 12) {
       putch(0x92);
       putch(note + octave);
       putch(100);
-    } else if (note == 12) {
+      return;
+    }
+#ifdef OCTAVE_SWITCH
+    if (note == 12) {
         octave = octave - 12;
         if (octave < 24) octave = 24;
-        switch(octave) {
-            case 24:
-                PWM2S1P1 = 60;
-                PWM1S1P1 = 0;
-                break;
-            case 36:
-                PWM2S1P1 = 40;
-                PWM1S1P1 = 0;
-                break;
-            case 48:
-                PWM2S1P1 = 20;
-                PWM1S1P1 = 0;
-                break;
-            case 60:
-                PWM2S1P1 = 0;
-                PWM1S1P1 = 0;
-                break;
-            case 72:
-                PWM2S1P1 = 0;
-                PWM1S1P1 = 20;
-                break;                
-            case 84:
-                PWM2S1P1 = 0;
-                PWM1S1P1 = 40;
-                break;
-        }
-        PWM1CONbits.LD = 1;
-        PWM2CONbits.LD = 1;
-    } else if (note == 13) {
+    }
+    if (note == 13) {
         octave = octave + 12;
         if (octave > 96) octave = 96;
-        PWM1S1P1 = octave - 12;
-        PWM2S1P1 = octave - 60;
-        switch(octave) {
-            case 36:
-                PWM2S1P1 = 40;
-                PWM1S1P1 = 0;
-                break;
-            case 48:
-                PWM2S1P1 = 20;
-                PWM1S1P1 = 0;
-                break;
-            case 60:
-                PWM2S1P1 = 0;
-                PWM1S1P1 = 0;
-                break;
-            case 72:
-                PWM2S1P1 = 0;
-                PWM1S1P1 = 20;
-                break;                
-            case 84:
-                PWM2S1P1 = 0;
-                PWM1S1P1 = 40;
-                break;
-            case 96:
-                PWM2S1P1 = 0;
-                PWM1S1P1 = 60;
-                break;
-        }
-        PWM1CONbits.LD = 1;
-        PWM2CONbits.LD = 1;
     }
+    switch(octave) {
+        case 24:
+            PWM2S1P1 = 60;
+            PWM1S1P1 = 0;
+            break;
+        case 36:
+            PWM2S1P1 = 40;
+            PWM1S1P1 = 0;
+            break;
+        case 48:
+            PWM2S1P1 = 20;
+            PWM1S1P1 = 0;
+            break;
+        case 60:
+            PWM2S1P1 = 0;
+            PWM1S1P1 = 0;
+            break;
+        case 72:
+            PWM2S1P1 = 0;
+            PWM1S1P1 = 20;
+            break;                
+        case 84:
+            PWM2S1P1 = 0;
+            PWM1S1P1 = 40;
+            break;
+        case 96:
+            PWM2S1P1 = 0;
+            PWM1S1P1 = 60;
+            break;
+    }
+    PWM1CONbits.LD = 1;
+    PWM2CONbits.LD = 1;
+#endif
+}
+
+void noteoff(unsigned char note) {
+    if (note < 12) {
+      putch(0x92);
+      putch(note + octave);
+      putch(0);    
+    }    
+}
+
+void on(unsigned int which, unsigned char note) {
+    if (keys & which) return;
+    keys |= which;
 }
 
 void off(unsigned int which, unsigned char note) {
     if (!(keys & which)) return;
     keys &= (65535 - which);
-    if (note < 12) {
-      putch(0x92);
-      putch(note + octave);
-      putch(0);    
-    }
 }
 
+void playdiff(void) {
+    // At this stage oldkeys contains keys, and sentkeys the sent keys.
+    // At the end we want all values to be oldkeys.
+    for(unsigned char i = 0; i < 14; i++) {  // there are 14 keys
+        if ((keys & 1) != (sentkeys & 1)) {
+            if (keys & 1) {
+                noteon(i);
+            } else {
+                noteoff(i);
+            }
+        }
+        sentkeys >>= 1;
+        keys >>= 1;
+    }
+    sentkeys = oldkeys;
+    keys = oldkeys;
+}
 void main(void) {
 
     ANSELC = 0x00;
@@ -218,7 +261,7 @@ void main(void) {
     WPUA = 255;
     RC4PPS = 0x0B;
     RB4PPS = 0x0D;
-
+    
     TRISCbits.TRISC0 = 1;
     WPUCbits.WPUC0 = 1;
     TRISCbits.TRISC1 = 1;
@@ -239,15 +282,42 @@ void main(void) {
     PWM1_Initialize();
     PWM2_Initialize();
     
+#ifdef OCTAVE_1
+    octave = 72;
+#endif
     while(1) {
+        // First we see if the last read was the same.
+        if (oldkeys == keys) {
+            same++;
+            if (same > 10) {
+                same = 0;
+                if (keys != sentkeys) {
+                    playdiff();
+                }
+            }
+        }
+        // Then check if there are incoming messages
+        if (queuesize > 2) {
+            msg = getch();
+            putch(msg);
+            if (msg == 0x92) {
+              msg = getch();
+              msg = msg - 60 + octave;
+              putch(msg);
+            }
+            msg = getch();
+            putch(msg);
+        }
+        oldkeys = keys;
         // Check C4
         TRISAbits.TRISA0 = 0;  // C4 output
         PORTAbits.RA0 = 0;     // short the capacitor
         __delay_us(CHARGE_DELAY);         // Wait until shorted
         count = 0;
+        INTCONbits.GIE = 0;
         TRISAbits.TRISA0 = 1;  // Start reading PORTA
         while (!PORTAbits.RA0) count++;
-        TRISAbits.TRISA0 = 1;  // Done checking
+        INTCONbits.GIE = 1;
         if (count > 1) {
             on(1, 0);
         } else {
@@ -257,8 +327,10 @@ void main(void) {
         PORTAbits.RA1 = 0;
         __delay_us(CHARGE_DELAY);
         count = 0;
+        INTCONbits.GIE = 0;
         TRISAbits.TRISA1 = 1;
         while (!PORTAbits.RA1) count++;
+        INTCONbits.GIE = 1;
         if (count > 1) {
             on(8, 3);
         } else {
@@ -269,8 +341,10 @@ void main(void) {
         PORTAbits.RA2 = 0;
         __delay_us(CHARGE_DELAY);
         count = 0;
+        INTCONbits.GIE = 0;
         TRISAbits.TRISA2 = 1;
         while (!PORTAbits.RA2) count++;
+        INTCONbits.GIE = 1;
         if (count > 1) {
             on(32, 5);
         } else {
@@ -282,8 +356,10 @@ void main(void) {
         PORTAbits.RA3 = 0;
         __delay_us(CHARGE_DELAY);
         count = 0;
+        INTCONbits.GIE = 0;
         TRISAbits.TRISA3 = 1;
         while (!PORTAbits.RA3) count++;
+        INTCONbits.GIE = 1;
         if (count > 1) {
             on(64, 6);
         } else {
@@ -295,8 +371,10 @@ void main(void) {
         PORTAbits.RA4 = 0;
         __delay_us(CHARGE_DELAY);
         count = 0;
+        INTCONbits.GIE = 0;
         TRISAbits.TRISA4 = 1;
         while (!PORTAbits.RA4) count++;
+        INTCONbits.GIE = 1;
         if (count > 1) {
             on(128, 7);
         } else {
@@ -308,8 +386,10 @@ void main(void) {
         PORTAbits.RA5 = 0;
         __delay_us(CHARGE_DELAY);
         count = 0;
+        INTCONbits.GIE = 0;
         TRISAbits.TRISA5 = 1;
         while (!PORTAbits.RA5) count++;
+        INTCONbits.GIE = 1;
         if (count > 1) {
             on(512, 9);
         } else {
@@ -321,8 +401,10 @@ void main(void) {
         PORTAbits.RA6 = 0;
         __delay_us(CHARGE_DELAY);
         count = 0;
+        INTCONbits.GIE = 0;
         TRISAbits.TRISA6 = 1;
         while (!PORTAbits.RA6) count++;
+        INTCONbits.GIE = 1;
         if (count > 1) {
             on(2048, 11);
         } else {
@@ -334,8 +416,10 @@ void main(void) {
         PORTAbits.RA7 = 0;
         __delay_us(CHARGE_DELAY);
         count = 0;
+        INTCONbits.GIE = 0;
         TRISAbits.TRISA7 = 1;
         while (!PORTAbits.RA7) count++;
+        INTCONbits.GIE = 1;
         if (count > 1) {
             on(256, 8);
         } else {
@@ -347,8 +431,10 @@ void main(void) {
         PORTCbits.RC0 = 0;
         __delay_us(CHARGE_DELAY);
         count = 0;
+        INTCONbits.GIE = 0;
         TRISCbits.TRISC0 = 1;
         while (!PORTCbits.RC0) count++;
+        INTCONbits.GIE = 1;
         if (count > 1) {
             on(1024, 10);
         } else {
@@ -360,8 +446,10 @@ void main(void) {
         PORTCbits.RC1 = 0;
         __delay_us(CHARGE_DELAY);
         count = 0;
+        INTCONbits.GIE = 0;
         TRISCbits.TRISC1 = 1;
         while (!PORTCbits.RC1) count++;
+        INTCONbits.GIE = 1;
         if (count > 1) {
             on(16, 4);
         } else {
@@ -373,8 +461,10 @@ void main(void) {
         PORTCbits.RC2 = 0;
         __delay_us(CHARGE_DELAY);
         count = 0;
+        INTCONbits.GIE = 0;
         TRISCbits.TRISC2 = 1;
         while (!PORTCbits.RC2) count++;
+        INTCONbits.GIE = 1;
         if (count > 1) {
             on(2, 1);
         } else {
@@ -386,8 +476,10 @@ void main(void) {
         PORTCbits.RC3 = 0;
         __delay_us(CHARGE_DELAY);
         count = 0;
+        INTCONbits.GIE = 0;
         TRISCbits.TRISC3 = 1;
         while (!PORTCbits.RC3) count++;
+        INTCONbits.GIE = 1;
         if (count > 1) {
             on(4, 2);
         } else {
@@ -399,8 +491,10 @@ void main(void) {
         PORTBbits.RB3 = 0;
         __delay_us(CHARGE_DELAY);
         count = 0;
+        INTCONbits.GIE = 0;
         TRISBbits.TRISB3 = 1;
         while (!PORTBbits.RB3) count++;
+        INTCONbits.GIE = 1;
         if (count > 1) {
             on(4096, 12);
         } else {
@@ -412,8 +506,10 @@ void main(void) {
         PORTBbits.RB2 = 0;
         __delay_us(CHARGE_DELAY);
         count = 0;
+        INTCONbits.GIE = 0;
         TRISBbits.TRISB2 = 1;
         while (!PORTBbits.RB2) count++;
+        INTCONbits.GIE = 1;
         if (count > 1) {
             on(8192, 13);
         } else {
