@@ -150,6 +150,11 @@ void PWM4_Initialize(void) {
  PWM4CONbits.LD = 1;
 }
 
+void DAC_Initialize(void) {
+    DAC1CON = 0b10100000; // EN, auto range, RB7 and RA2, Vdd, Vss
+    CPCONbits.CPON = 1;
+}
+
 void init_uart(void) {
   SP1BRG = 1;                        // 3 at 8Mhz, 9 at 20Mhz (from 4 to 10)
   SP1BRGH = 0;
@@ -176,8 +181,8 @@ unsigned char queuesize = 0;
 unsigned short toloadnote[4] = {0, 0, 0, 0};
 unsigned short toloadpwm[4] = {0, 0, 0, 0};
 unsigned short loadednote[4] = {0, 0, 0, 0};
-unsigned char note[4] = {0, 0, 0, 0};
-unsigned char gate[4] = {0, 0, 0, 0};
+unsigned char note[5] = {0, 0, 0, 0};
+unsigned char gate[5] = {0, 0, 0, 0};
 
 unsigned char midi;
 unsigned char inote;
@@ -319,7 +324,8 @@ void main(void) {
     RC5PPS = 0x0F;
     RC6PPS = 0x11;
     RC0PPS = 0x00;
-    
+    // RB7PPS = 0x00;
+        
     TRISCbits.TRISC7 = 1;  // RX
     TRISAbits.TRISA0 = 1;  // Potentiometer
 
@@ -330,6 +336,15 @@ void main(void) {
     ANSELAbits.ANSELA0 = 1;
     ADPCH = 0x00; //RA0 is positive input
     ADCON0bits.GO = 1; //Start conversion
+    
+    DAC_Initialize();
+
+/*
+    while(1) {
+        PORTBbits.RB7 = 1;
+        DAC1DATL = 64;
+    }
+    */
     
     while(1) {
       if (queuesize > 2) {
@@ -369,20 +384,16 @@ void main(void) {
       load2();
       load3();
       load4();
-      PORTCbits.RC0 = gate[0];
-      PORTCbits.RC1 = gate[1];
-      PORTCbits.RC2 = gate[2];
-      PORTCbits.RC3 = gate[3];
       if (!ogate) {
         if (gate[0] || gate[1] || gate[2] || gate[3]) {
             if (!toloadnote[0] && !toloadnote[1] && !toloadnote[2] && !toloadnote[3]) {
               ogate = 1;
-              PORTBbits.RB5 = 1;
+              PORTCbits.RC2 = 1;
             }
         }
       } else {
           if (!gate[0] && !gate[1] && !gate[2] && !gate[3]) {
-              PORTBbits.RB5 = 0;
+              PORTCbits.RC2 = 0;
               ogate = 0;
               clean = 0;
           }
