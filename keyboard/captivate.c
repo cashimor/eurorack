@@ -6,54 +6,11 @@
  */
 
 // PIC16F18156 Configuration Bit Settings
-
-// 'C' source line config statements
-
-// CONFIG1
-#pragma config FEXTOSC = OFF    // External Oscillator Selection bits (Oscillator not enabled)
-#pragma config RSTOSC = HFINTOSC_32MHz// Reset Oscillator Selection bits (HFINTOSC (32 MHz))
-#pragma config CLKOUTEN = OFF   // Clock Out Enable bit (CLKOUT function is disabled; i/o or oscillator function on OSC2)
-#pragma config CSWEN = ON       // Clock Switch Enable bit (Writing to NOSC and NDIV is allowed)
-#pragma config VDDAR = HI       // VDD Range Analog Calibration Selection bit (Internal analog systems are calibrated for operation between VDD = 2.3 - 5.5V)
-#pragma config FCMEN = OFF      // Fail-Safe Clock Monitor Enable bit (Fail-Safe Clock Monitor disabled)
-
-// CONFIG2
-#pragma config MCLRE = INTMCLR  // Master Clear Enable bit (If LVP = 0, MCLR is port-defined function; If LVP = 1, RA3 pin function is MCLR)
-#pragma config PWRTS = PWRT_OFF // Power-up Timer Selection bits (PWRT is disabled)
-#pragma config LPBOREN = OFF    // Low-Power BOR Enable bit (ULPBOR disabled)
-#pragma config BOREN = OFF      // Brown-out Reset Enable bits (Brown-out reset disabled)
-#pragma config DACAUTOEN = OFF  // DAC Buffer Automatic Range Select Enable bit (DAC Buffer reference range is determined by the REFRNG bit)
-#pragma config BORV = LO        // Brown-out Reset Voltage Selection bit (Brown-out Reset Voltage (VBOR) set to 1.9V)
-#pragma config ZCD = OFF        // ZCD Disable bit (ZCD module is disabled; ZCD can be enabled by setting the ZCDSEN bit of ZCDCON)
-#pragma config PPS1WAY = ON     // PPSLOCKED One-Way Set Enable bit (The PPSLOCKED bit can be cleared and set only once after an unlocking sequence is executed; once PPSLOCKED is set, all future changes to PPS registers are prevented)
-#pragma config STVREN = OFF     // Stack Overflow/Underflow Reset Enable bit (Stack Overflow or Underflow will not cause a reset)
-#pragma config DEBUG = OFF      // Background Debugger (Background Debugger disabled)
-
-// CONFIG3
-#pragma config WDTCPS = WDTCPS_31// WDT Period Select bits (Divider ratio 1:65536; software control of WDTPS)
-#pragma config WDTE = OFF       // WDT Operating Mode bits (WDT Disabled, SEN is ignored)
-#pragma config WDTCWS = WDTCWS_7// WDT Window Select bits (window always open (100%); software control; keyed access not required)
-#pragma config WDTCCS = SC      // WDT Input Clock Select bits (Software Control)
-
-// CONFIG4
-#pragma config BBSIZE = BB512   // Boot Block Size Selection bits (512 words boot block size)
-#pragma config BBEN = OFF       // Boot Block Enable bit (Boot Block disabled)
-#pragma config SAFEN = OFF      // Storage Area Flash (SAF) Enable bit (SAF disabled)
-#pragma config WRTAPP = OFF     // Application Block Write Protection bit (Application Block is NOT write protected)
-#pragma config WRTB = OFF       // Boot Block Write Protection bit (Boot Block is NOT write protected)
-#pragma config WRTC = OFF       // Configuration Register Write Protection bit (Configuration Register is NOT write protected)
-#pragma config WRTD = OFF       // Data EEPROM Write Protection bit (Data EEPROM is NOT write protected)
-#pragma config WRTSAF = OFF     // Storage Area Flash (SAF) Write Protection bit (SAF is NOT write protected)
-#pragma config LVP = OFF        // Low Voltage Programming Enable bit (High Voltage on MCLR/Vpp must be used for programming)
-
-// CONFIG5
-#pragma config CP = OFF         // Program Flash Memory Code Protection bit (Program Flash Memory code protection is disabled)
-#pragma config CPD = OFF        // Data EEPROM Code Protection bit (Data EEPROM code protection is disabled)
-
-// #pragma config statements should precede project file includes.
-// Use project enums instead of #define for ON and OFF.
+#include "config.h"
 
 #include <xc.h>
+#include "pwm.h"
+
 #define _XTAL_FREQ 32000000
 
 // These are the different types of keyboards
@@ -93,44 +50,6 @@ const unsigned char lookup[128] = {
 
 unsigned char count = 0;
 
-void PWM1_Initialize(void) {
- PWM1ERS = 0x00; // PWMERS External Reset Disabled;
- PWM1CLK = 0x02; // PWMCLK FOSC;
- PWM1LDS = 0x00; // PWMLDS Autoload disabled;
- PWM1PR = 60;
- PWM1CPRE = 0x00; // PWMCPRE No prescale;
- PWM1PIPOS = 0x00; // PWMPIPOS No postscale;
- PWM1GIR = 0x00; // PWMS1P2IF PWM2 output match did not occur;
- // PWMS1P1IF PWM1 output match did not occur;
- PWM1GIE = 0x00; // PWMS1P2IE disabled; PWMS1P1IE disabled;
- PWM1S1CFG = 0x00; // PWMPOL2 disabled; PWMPOL1 disabled; PWMPPEN
- // disabled; PWMMODE PWMOUT1,PWMOUT2 in left
- // aligned mode
- PWM1S1P1 = 0x0000;
- PWM1CON = 0x80; // PWMEN enabled; PWMLD disabled; PWMERSPOL
- // disabled; PWMERSNOW disabled;
- PWM1CONbits.LD = 1;
-}
-
-void PWM2_Initialize(void) {
- PWM2ERS = 0x00; // PWMERS External Reset Disabled;
- PWM2CLK = 0x02; // PWMCLK FOSC;
- PWM2LDS = 0x00; // PWMLDS Autoload disabled;
- PWM2PR = 60;
- PWM2CPRE = 0x00; // PWMCPRE No prescale;
- PWM2PIPOS = 0x00; // PWMPIPOS No postscale;
- PWM2GIR = 0x00; // PWMS1P2IF PWM2 output match did not occur;
- // PWMS1P1IF PWM1 output match did not occur;
- PWM2GIE = 0x00; // PWMS1P2IE disabled; PWMS1P1IE disabled;
- PWM2S1CFG = 0x00; // PWMPOL2 disabled; PWMPOL1 disabled; PWMPPEN
- // disabled; PWMMODE PWMOUT1,PWMOUT2 in left
- // aligned mode
- PWM2S1P1 = 0x0000;
- PWM2CON = 0x80; // PWMEN enabled; PWMLD disabled; PWMERSPOL
- // disabled; PWMERSNOW disabled;
- PWM2CONbits.LD = 1;
-}
-
 void init_uart(void) {
   SP1BRG = 15;                       // 3 at 8Mhz, 9 at 20Mhz (from 4 to 10)
   SP1BRGH = 0;
@@ -156,8 +75,7 @@ void init_uart(void) {
 void init_timer(void) {
     T0CON0 = 0b10000000;
     T0CON1 = 0b10010100; // LFINTOSC (31kHz) / 16 (= 64 but 4 beats)
-    //TMR0H = 255;  // slowest beat
-    TMR0H = 79;  // fastest beat
+    TMR0H = 128;         // Picking mid value. Do not go below 70.
     
     // Setup interrupt for timer
     PIE0bits.TMR0IE = 1;
@@ -171,23 +89,32 @@ unsigned char queuewrite = 0;
 unsigned char queuesize = 0;
 unsigned char bpm = 0;
 
+unsigned char seqstate = 0; // 0 - none, 1 - playback, 2 - recording.
+
 __interrupt() void incoming() {
     // Timer interrupt
     if (PIR0bits.TMR0IF) {
         if (bpm) {
             bpm = 0;
-            PWM2S1P1 = 0;
-            PWM2CONbits.LD = 1;
-            PWM1S1P1 = 60;
-            PWM1CONbits.LD = 1;
+            if (seqstate == 0 || seqstate == 1) {
+              PWM2S1P1 = 0;
+              PWM2CONbits.LD = 1;
+            }
+            if (seqstate == 0 || seqstate == 2) {
+              PWM1S1P1 = 60;
+              PWM1CONbits.LD = 1;
+            }
 
         } else {
             bpm = 1;
-            PWM2S1P1 = 60;
-            PWM2CONbits.LD = 1;
-            PWM1S1P1 = 0;
-            PWM1CONbits.LD = 1;
-
+            if (seqstate == 0 || seqstate == 1) {
+              PWM2S1P1 = 60;
+              PWM2CONbits.LD = 1;
+            }
+            if (seqstate == 0 || seqstate == 2) {
+              PWM1S1P1 = 0;
+              PWM1CONbits.LD = 1;
+            }
         }
         PIR0bits.TMR0IF = 0;
     }
@@ -278,6 +205,25 @@ void noteon(unsigned char note) {
     PWM1CONbits.LD = 1;
     PWM2CONbits.LD = 1;
 #endif
+#ifdef SEQUENCER
+    if (note == 12) {
+        if (seqstate == 0) {
+          PWM2S1P1 = 60;
+          PWM2CONbits.LD = 1;
+          seqstate = 2;
+        } else {
+            seqstate = 0;
+        }
+    } else if (note == 13) {
+        if (seqstate == 0) {
+          PWM1S1P1 = 60;
+          PWM1CONbits.LD = 1;
+          seqstate = 1;
+        } else {
+            seqstate = 0;
+        }
+    }
+#endif
 }
 
 void noteoff(unsigned char note) {
@@ -315,6 +261,31 @@ void playdiff(void) {
     sentkeys = oldkeys;
     keys = oldkeys;
 }
+
+unsigned char read(unsigned char location) {
+  // This code block will read 1 word (byte) of DFM
+  NVMCON1bits.NVMREGS = 1; // Point to DFM
+  NVMADRH = 0x070;
+  NVMADRL = location;
+  NVMCON1bits.RD = 1; // Initiate read cycle
+  return NVMDATL;
+}
+
+void write(unsigned char location, unsigned char v) {
+  NVMCON1bits.NVMREGS = 1; // Point to DFM
+  NVMADRH = 0x070;
+  NVMADRL = location;
+  NVMDATL = v;
+  NVMCON1bits.WREN = 1; // Allows program/erase cycles
+  INTCONbits.GIE = 0; // Disable interrupts
+  NVMCON2 = 0x55; // Perform required unlock sequence
+  NVMCON2 = 0xAA;
+  NVMCON1bits.WR = 1; // Begin program/erase cycle
+  INTCONbits.GIE = 1; // Restore interrupt enable bit value
+  NVMCON1bits.WREN = 0; // Disable program/erase
+  NVMCON1bits.WRERR = 0; // Ignore errors
+}
+
 void main(void) {
     ANSELC = 0x00;
     ANSELB = 0x00;
@@ -385,14 +356,20 @@ void main(void) {
         // Then check if there are incoming messages
         if (queuesize > 2) {
             msg = getch();
+#ifndef SEQUENCER
             putch(msg);
+#endif
             if (msg == 0x92) {
               msg = getch();
               msg = msg - 60 + octave;
+#ifndef SEQUENCER
               putch(msg);
+#endif
             }
             msg = getch();
+#ifndef SEQUENCER
             putch(msg);
+#endif
         }
         oldkeys = keys;
         if (PORTBbits.RB1) {
