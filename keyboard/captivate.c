@@ -55,11 +55,40 @@
 
 #include <xc.h>
 #define _XTAL_FREQ 32000000
-#define CHARGE_DELAY 10
 
 // These are the different types of keyboards
-#define OCTAVE_SWITCH
-//#define OCTAVE_1
+//#define OCTAVE_SWITCH
+#define OCTAVE_1
+#define SEQUENCER
+
+
+#define SCAN(PRT, PIN, BIT, NOTE) \
+        TRIS ## PRT ## bits.TRIS ## PIN = 0; \
+        PORT ## PRT ## bits.R ## PIN = 0; \
+        __delay_us(1); \
+        count = 0; \
+        INTCONbits.GIE = 0; \
+        WPU ## PRT ## bits.WPU ## PIN = 1; \
+        TRIS ## PRT ## bits.TRIS ## PIN = 1; \
+        while (!PORT ## PRT ## bits.R ## PIN) count++; \
+        INTCONbits.GIE = 1; \
+        WPU ## PRT ## bits.WPU ## PIN = 0; \
+        if (count > 1) { \
+            on(BIT, NOTE); \
+        } else { \
+            off(BIT, NOTE); \
+        }
+
+const unsigned char lookup[128] = {
+    255, 251, 246, 242, 238, 234, 231, 227, 224, 220, 217, 214, 211, 208, 205,
+    202, 199, 196, 194, 191, 189, 186, 184, 182, 179, 177, 175, 173, 171, 169,
+    167, 165, 163, 161, 160, 158, 156, 155, 153, 151, 150, 148, 146, 145, 144,
+    142, 141, 140, 138, 137, 136, 135, 133, 132, 131, 130, 129, 127, 126, 125,
+    124, 123, 122, 121, 120, 119, 118, 117, 116, 115, 114, 113, 113, 112, 111,
+    110, 109, 108, 108, 107, 106, 105, 105, 104, 103, 102, 102, 101, 100, 100,
+    99, 98, 98, 97, 96, 96, 95, 94, 94, 93, 93, 92, 91, 91, 90, 89, 89, 89, 88,
+    88, 87, 86, 86, 85, 85, 84, 84, 84, 83, 83, 82, 82, 81, 81, 80, 80, 79, 78
+};
 
 
 unsigned char count = 0;
@@ -124,20 +153,55 @@ void init_uart(void) {
 
 }
 
+void init_timer(void) {
+    T0CON0 = 0b10000000;
+    T0CON1 = 0b10010100; // LFINTOSC (31kHz) / 16 (= 64 but 4 beats)
+    //TMR0H = 255;  // slowest beat
+    TMR0H = 79;  // fastest beat
+    
+    // Setup interrupt for timer
+    PIE0bits.TMR0IE = 1;
+    INTCONbits.PEIE = 1;
+    INTCONbits.GIE = 1;
+}
+
 unsigned char queue[16];
 unsigned char queueread = 0;
 unsigned char queuewrite = 0;
 unsigned char queuesize = 0;
+unsigned char bpm = 0;
 
 __interrupt() void incoming() {
-    queue[queuewrite & 15] = RC1REG;
-    queuewrite++;
-    queuesize++;
-    if (RC1STAbits.OERR) {
-        PORTCbits.RC0 = 1;
-        RC1STAbits.CREN = 0;
-        RC1STAbits.CREN = 1;
-    }    
+    // Timer interrupt
+    if (PIR0bits.TMR0IF) {
+        if (bpm) {
+            bpm = 0;
+            PWM2S1P1 = 0;
+            PWM2CONbits.LD = 1;
+            PWM1S1P1 = 60;
+            PWM1CONbits.LD = 1;
+
+        } else {
+            bpm = 1;
+            PWM2S1P1 = 60;
+            PWM2CONbits.LD = 1;
+            PWM1S1P1 = 0;
+            PWM1CONbits.LD = 1;
+
+        }
+        PIR0bits.TMR0IF = 0;
+    }
+    // EUSART interrupt
+    if (PIR4bits.RC1IF) {
+      queue[queuewrite & 15] = RC1REG;
+      queuewrite++;
+      queuesize++;
+      if (RC1STAbits.OERR) {
+          PORTCbits.RC0 = 1;
+          RC1STAbits.CREN = 0;
+          RC1STAbits.CREN = 1;
+      }    
+    }
 }
 
 char getch() {
@@ -163,6 +227,7 @@ unsigned int keys = 0;
 unsigned int same = 0;
 unsigned char octave = 60;
 unsigned char msg;
+unsigned char rate;
 
 void noteon(unsigned char note) {
     if (note < 12) {
@@ -251,29 +316,31 @@ void playdiff(void) {
     keys = oldkeys;
 }
 void main(void) {
-
     ANSELC = 0x00;
     ANSELB = 0x00;
     ANSELA = 0x00;
     TRISC = 0;                 // Everything output for now
     TRISA = 255;                 // Everything output for now
     TRISB = 0;                 // Everything output for now
-    WPUA = 255;
+    
     RC4PPS = 0x0B;
     RB4PPS = 0x0D;
     
     TRISCbits.TRISC0 = 1;
-    WPUCbits.WPUC0 = 1;
     TRISCbits.TRISC1 = 1;
-    WPUCbits.WPUC1 = 1;
     TRISCbits.TRISC2 = 1;
-    WPUCbits.WPUC2 = 1;
     TRISCbits.TRISC3 = 1;
-    WPUCbits.WPUC3 = 1;
+    TRISCbits.TRISC5 = 1;  // Knob
     TRISBbits.TRISB2 = 1;
     TRISBbits.TRISB3 = 1;
-    WPUBbits.WPUB2 = 1;
-    WPUBbits.WPUB3 = 1;
+    
+    // B1 is is our bus, which is by default pulled high.
+    TRISBbits.TRISB1 = 1;
+    LATBbits.LATB1 = 0;
+    
+    WPUA = 0b11111111;
+    WPUC = 0b00001111;
+    WPUB = 0b00001110;
     
     //RA4PPS = 0x00;
     //T0CON0bits.EN = 0;
@@ -285,7 +352,26 @@ void main(void) {
 #ifdef OCTAVE_1
     octave = 72;
 #endif
+#ifdef SEQUENCER
+    init_timer();
+    PWM1S1P1 = 30;
+    PWM2S1P1 = 30;
+    PWM1CONbits.LD = 1;
+    PWM2CONbits.LD = 1;
+    // Setup AD conversion
+    ADCON0bits.FM = 0;
+    ADCON0bits.CS = 1;   // ADCRC Clock
+    ADCON0bits.IC = 0;   // Regular mode
+    ADCON0bits.ON = 1;   // Turn ADC on.
+    ANSELCbits.ANSELC5 = 1;
+    ADPCH = 0b000010101; // RC5 is positive input
+#endif
+    
     while(1) {
+#ifdef SEQUENCER
+        ADCON0bits.GO = 1;   // Start conversion
+#endif
+        
         // First we see if the last read was the same.
         if (oldkeys == keys) {
             same++;
@@ -309,213 +395,31 @@ void main(void) {
             putch(msg);
         }
         oldkeys = keys;
-        // Check C4
-        TRISAbits.TRISA0 = 0;  // C4 output
-        PORTAbits.RA0 = 0;     // short the capacitor
-        __delay_us(CHARGE_DELAY);         // Wait until shorted
-        count = 0;
-        INTCONbits.GIE = 0;
-        TRISAbits.TRISA0 = 1;  // Start reading PORTA
-        while (!PORTAbits.RA0) count++;
-        INTCONbits.GIE = 1;
-        if (count > 1) {
-            on(1, 0);
-        } else {
-            off(1, 0);
+        if (PORTBbits.RB1) {
+          TRISBbits.TRISB1 = 0;
+          SCAN(A, A0, 1, 0)
+          SCAN(A, A1, 8, 3)
+          SCAN(A, A2, 32, 5)
+          SCAN(A, A3, 64, 6)
+          SCAN(A, A4, 128, 7)
+          SCAN(A, A5, 512, 9)
+          SCAN(A, A6, 2048, 11)
+          SCAN(A, A7, 256, 8)
+          SCAN(C, C0, 1024, 10)
+          SCAN(C, C1, 16, 4)
+          SCAN(C, C2, 2, 1)
+          SCAN(C, C3, 4, 2)
+          SCAN(B, B3, 4096, 12)
+          SCAN(B, B2, 8192, 13)
+          TRISBbits.TRISB1 = 1;
         }
-        TRISAbits.TRISA1 = 0;
-        PORTAbits.RA1 = 0;
-        __delay_us(CHARGE_DELAY);
-        count = 0;
-        INTCONbits.GIE = 0;
-        TRISAbits.TRISA1 = 1;
-        while (!PORTAbits.RA1) count++;
-        INTCONbits.GIE = 1;
-        if (count > 1) {
-            on(8, 3);
-        } else {
-            off(8, 3);
+#ifdef SEQUENCER
+        if (!ADCON0bits.GO) {
+          rate = ADRESH;
+          rate = rate >> 1;
+          TMR0H = lookup[rate];
         }
-        // Start 2
-        TRISAbits.TRISA2 = 0;
-        PORTAbits.RA2 = 0;
-        __delay_us(CHARGE_DELAY);
-        count = 0;
-        INTCONbits.GIE = 0;
-        TRISAbits.TRISA2 = 1;
-        while (!PORTAbits.RA2) count++;
-        INTCONbits.GIE = 1;
-        if (count > 1) {
-            on(32, 5);
-        } else {
-            off(32, 5);
-        }
-        // End 2
-        // Start 3
-        TRISAbits.TRISA3 = 0;
-        PORTAbits.RA3 = 0;
-        __delay_us(CHARGE_DELAY);
-        count = 0;
-        INTCONbits.GIE = 0;
-        TRISAbits.TRISA3 = 1;
-        while (!PORTAbits.RA3) count++;
-        INTCONbits.GIE = 1;
-        if (count > 1) {
-            on(64, 6);
-        } else {
-            off(64, 6);
-        }
-        // End 3
-        // Start 4
-        TRISAbits.TRISA4 = 0;
-        PORTAbits.RA4 = 0;
-        __delay_us(CHARGE_DELAY);
-        count = 0;
-        INTCONbits.GIE = 0;
-        TRISAbits.TRISA4 = 1;
-        while (!PORTAbits.RA4) count++;
-        INTCONbits.GIE = 1;
-        if (count > 1) {
-            on(128, 7);
-        } else {
-            off(128, 7);
-        }
-        // End 4
-        // Start 5
-        TRISAbits.TRISA5 = 0;
-        PORTAbits.RA5 = 0;
-        __delay_us(CHARGE_DELAY);
-        count = 0;
-        INTCONbits.GIE = 0;
-        TRISAbits.TRISA5 = 1;
-        while (!PORTAbits.RA5) count++;
-        INTCONbits.GIE = 1;
-        if (count > 1) {
-            on(512, 9);
-        } else {
-            off(512, 9);
-        }
-        // End 5
-        // Start 6
-        TRISAbits.TRISA6 = 0;
-        PORTAbits.RA6 = 0;
-        __delay_us(CHARGE_DELAY);
-        count = 0;
-        INTCONbits.GIE = 0;
-        TRISAbits.TRISA6 = 1;
-        while (!PORTAbits.RA6) count++;
-        INTCONbits.GIE = 1;
-        if (count > 1) {
-            on(2048, 11);
-        } else {
-            off(2048, 11);
-        }
-        // End 6
-        // Start 7
-        TRISAbits.TRISA7 = 0;
-        PORTAbits.RA7 = 0;
-        __delay_us(CHARGE_DELAY);
-        count = 0;
-        INTCONbits.GIE = 0;
-        TRISAbits.TRISA7 = 1;
-        while (!PORTAbits.RA7) count++;
-        INTCONbits.GIE = 1;
-        if (count > 1) {
-            on(256, 8);
-        } else {
-            off(256, 8);
-        }
-        // End 7
-        // Start RC0
-        TRISCbits.TRISC0 = 0;
-        PORTCbits.RC0 = 0;
-        __delay_us(CHARGE_DELAY);
-        count = 0;
-        INTCONbits.GIE = 0;
-        TRISCbits.TRISC0 = 1;
-        while (!PORTCbits.RC0) count++;
-        INTCONbits.GIE = 1;
-        if (count > 1) {
-            on(1024, 10);
-        } else {
-            off(1024, 10);
-        }
-        // End RC0
-        // Start RC1
-        TRISCbits.TRISC1 = 0;
-        PORTCbits.RC1 = 0;
-        __delay_us(CHARGE_DELAY);
-        count = 0;
-        INTCONbits.GIE = 0;
-        TRISCbits.TRISC1 = 1;
-        while (!PORTCbits.RC1) count++;
-        INTCONbits.GIE = 1;
-        if (count > 1) {
-            on(16, 4);
-        } else {
-            off(16, 4);
-        }
-        // End RC1
-        // Start RC2
-        TRISCbits.TRISC2 = 0;
-        PORTCbits.RC2 = 0;
-        __delay_us(CHARGE_DELAY);
-        count = 0;
-        INTCONbits.GIE = 0;
-        TRISCbits.TRISC2 = 1;
-        while (!PORTCbits.RC2) count++;
-        INTCONbits.GIE = 1;
-        if (count > 1) {
-            on(2, 1);
-        } else {
-            off(2, 1);
-        }
-        // End RC2
-        // Start RC3
-        TRISCbits.TRISC3 = 0;
-        PORTCbits.RC3 = 0;
-        __delay_us(CHARGE_DELAY);
-        count = 0;
-        INTCONbits.GIE = 0;
-        TRISCbits.TRISC3 = 1;
-        while (!PORTCbits.RC3) count++;
-        INTCONbits.GIE = 1;
-        if (count > 1) {
-            on(4, 2);
-        } else {
-            off(4, 2);
-        }
-        // End RC3
-        // button 1
-        TRISBbits.TRISB3 = 0;
-        PORTBbits.RB3 = 0;
-        __delay_us(CHARGE_DELAY);
-        count = 0;
-        INTCONbits.GIE = 0;
-        TRISBbits.TRISB3 = 1;
-        while (!PORTBbits.RB3) count++;
-        INTCONbits.GIE = 1;
-        if (count > 1) {
-            on(4096, 12);
-        } else {
-            off(4096, 12);
-        }
-        // end button 1
-        // button 2
-        TRISBbits.TRISB2 = 0;
-        PORTBbits.RB2 = 0;
-        __delay_us(CHARGE_DELAY);
-        count = 0;
-        INTCONbits.GIE = 0;
-        TRISBbits.TRISB2 = 1;
-        while (!PORTBbits.RB2) count++;
-        INTCONbits.GIE = 1;
-        if (count > 1) {
-            on(8192, 13);
-        } else {
-            off(8192, 13);
-        }
-        // end button 2
+#endif
      }
     return;
 }
