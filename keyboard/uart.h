@@ -1,78 +1,55 @@
-/* Microchip Technology Inc. and its subsidiaries.  You may use this software 
- * and any derivatives exclusively with Microchip products. 
- * 
- * THIS SOFTWARE IS SUPPLIED BY MICROCHIP "AS IS".  NO WARRANTIES, WHETHER 
- * EXPRESS, IMPLIED OR STATUTORY, APPLY TO THIS SOFTWARE, INCLUDING ANY IMPLIED 
- * WARRANTIES OF NON-INFRINGEMENT, MERCHANTABILITY, AND FITNESS FOR A 
- * PARTICULAR PURPOSE, OR ITS INTERACTION WITH MICROCHIP PRODUCTS, COMBINATION 
- * WITH ANY OTHER PRODUCTS, OR USE IN ANY APPLICATION. 
- *
- * IN NO EVENT WILL MICROCHIP BE LIABLE FOR ANY INDIRECT, SPECIAL, PUNITIVE, 
- * INCIDENTAL OR CONSEQUENTIAL LOSS, DAMAGE, COST OR EXPENSE OF ANY KIND 
- * WHATSOEVER RELATED TO THE SOFTWARE, HOWEVER CAUSED, EVEN IF MICROCHIP HAS 
- * BEEN ADVISED OF THE POSSIBILITY OR THE DAMAGES ARE FORESEEABLE.  TO THE 
- * FULLEST EXTENT ALLOWED BY LAW, MICROCHIP'S TOTAL LIABILITY ON ALL CLAIMS 
- * IN ANY WAY RELATED TO THIS SOFTWARE WILL NOT EXCEED THE AMOUNT OF FEES, IF 
- * ANY, THAT YOU HAVE PAID DIRECTLY TO MICROCHIP FOR THIS SOFTWARE.
- *
- * MICROCHIP PROVIDES THIS SOFTWARE CONDITIONALLY UPON YOUR ACCEPTANCE OF THESE 
- * TERMS. 
- */
-
 /* 
- * File:   
- * Author: 
- * Comments:
- * Revision history: 
+ * File:   uart.h
+ * Author: Maarten Hofman
+ * Comments: PIC16F18156 only so far.
+ * Revision history: 20240705
  */
 
 // This is a guard condition so that contents of this file are not included
 // more than once.  
-#ifndef XC_HEADER_TEMPLATE_H
-#define	XC_HEADER_TEMPLATE_H
-
-#include <xc.h> // include processor files - each processor file is guarded.  
-
-// TODO Insert appropriate #include <>
-
-// TODO Insert C++ class definitions if appropriate
-
-// TODO Insert declarations
-
-// Comment a function and leverage automatic documentation with slash star star
-/**
-    <p><b>Function prototype:</b></p>
+#ifndef UART_H
+#define	UART_H
+void init_uart(void) {
+  SP1BRG = 15;                       // 3 at 8Mhz, 9 at 20Mhz (from 4 to 10)
+  SP1BRGH = 0;
+  TX1STAbits.TXEN = 1;               // enable transmitter
+  TX1STAbits.SYNC = 0;
+  TX1STAbits.BRGH = 0;
+  RC1STAbits.RX9 = 0;
+  RC1STAbits.ADDEN = 0;
+  RC1STAbits.SPEN = 1;               // enable serial port
+  RC1STAbits.CREN = 1;               // enable receiver
+  BAUD1CONbits.BRG16 = 0;            // Set at 1 Mhz with SP1BRG at 1
+  BAUD1CONbits.ABDEN = 0;
+  RB5PPS = 0x13;
+  TRISCbits.TRISC7 = 1;                 // RX
   
-    <p><b>Summary:</b></p>
-
-    <p><b>Description:</b></p>
-
-    <p><b>Precondition:</b></p>
-
-    <p><b>Parameters:</b></p>
-
-    <p><b>Returns:</b></p>
-
-    <p><b>Example:</b></p>
-    <code>
- 
-    </code>
-
-    <p><b>Remarks:</b></p>
- */
-// TODO Insert declarations or function prototypes (right here) to leverage 
-// live documentation
-
-#ifdef	__cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
-    // TODO If C++ is being used, regular C code needs function names to have C 
-    // linkage so the functions can be used by the c code. 
-
-#ifdef	__cplusplus
+  // Setup interrupt for input
+  PIE4bits.RC1IE = 1;
+  INTCONbits.PEIE = 1;
+  INTCONbits.GIE = 1;
 }
-#endif /* __cplusplus */
 
-#endif	/* XC_HEADER_TEMPLATE_H */
+unsigned char queue[16];
+unsigned char queueread = 0;
+unsigned char queuewrite = 0;
+unsigned char queuesize = 0;
+
+char getch() {
+    unsigned char data;
+
+    while(!queuesize) {
+    }
+    data = queue[queueread & 15];
+    queueread++;
+    queuesize--;
+    return data;
+}
+
+void putch(unsigned char data) {
+  while(!PIR4bits.TX1IF) {          // wait until the transmitter is ready
+  }
+  TX1REG = data;                     // send one character
+}
+#endif
 

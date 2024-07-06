@@ -19,6 +19,8 @@ unsigned char read(unsigned char location) {
 }
 
 void write(unsigned char location, unsigned char v) {
+  // Wait for write to complete.
+  while (NVMCON1bits.WR);
   NVMCON1bits.NVMREGS = 1; // Point to DFM
   NVMADRH = 0x070;
   NVMADRL = location;

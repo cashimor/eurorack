@@ -1,7 +1,7 @@
 /* 
  * File:   pwm.h
  * Author: Maarten Hofman
- * Comments:
+ * Comments: PIC16F18156 only so far.
  * Revision history: 20240705
  */
 

@@ -6,17 +6,20 @@
  */
 
 // PIC16F18156 Configuration Bit Settings
+
 #include "config.h"
 
 #include <xc.h>
 #include "pwm.h"
+#include "uart.h"
+#include "eeprom.h"
 
 #define _XTAL_FREQ 32000000
 
 // These are the different types of keyboards
-//#define OCTAVE_SWITCH
-#define OCTAVE_1
-#define SEQUENCER
+#define OCTAVE_SWITCH
+//#define OCTAVE_1
+//#define SEQUENCER
 
 
 #define SCAN(PRT, PIN, BIT, NOTE) \
@@ -50,28 +53,6 @@ const unsigned char lookup[128] = {
 
 unsigned char count = 0;
 
-void init_uart(void) {
-  SP1BRG = 15;                       // 3 at 8Mhz, 9 at 20Mhz (from 4 to 10)
-  SP1BRGH = 0;
-  TX1STAbits.TXEN = 1;               // enable transmitter
-  TX1STAbits.SYNC = 0;
-  TX1STAbits.BRGH = 0;
-  RC1STAbits.RX9 = 0;
-  RC1STAbits.ADDEN = 0;
-  RC1STAbits.SPEN = 1;               // enable serial port
-  RC1STAbits.CREN = 1;               // enable receiver
-  BAUD1CONbits.BRG16 = 0;            // Set at 1 Mhz with SP1BRG at 1
-  BAUD1CONbits.ABDEN = 0;
-  RB5PPS = 0x13;
-  TRISCbits.TRISC7 = 1;                 // RX
-  
-  // Setup interrupt for input
-  PIE4bits.RC1IE = 1;
-  INTCONbits.PEIE = 1;
-  INTCONbits.GIE = 1;
-
-}
-
 void init_timer(void) {
     T0CON0 = 0b10000000;
     T0CON1 = 0b10010100; // LFINTOSC (31kHz) / 16 (= 64 but 4 beats)
@@ -83,13 +64,10 @@ void init_timer(void) {
     INTCONbits.GIE = 1;
 }
 
-unsigned char queue[16];
-unsigned char queueread = 0;
-unsigned char queuewrite = 0;
-unsigned char queuesize = 0;
 unsigned char bpm = 0;
 
-unsigned char seqstate = 0; // 0 - none, 1 - playback, 2 - recording.
+unsigned char seqstate = 0; // 0 - none, 1 - playback, 2+ - recording.
+unsigned char beat = 0;
 
 __interrupt() void incoming() {
     // Timer interrupt
@@ -100,18 +78,19 @@ __interrupt() void incoming() {
               PWM2S1P1 = 0;
               PWM2CONbits.LD = 1;
             }
-            if (seqstate == 0 || seqstate == 2) {
+            if (seqstate == 0 || seqstate > 1) {
               PWM1S1P1 = 60;
               PWM1CONbits.LD = 1;
             }
 
         } else {
             bpm = 1;
+            beat = 1;
             if (seqstate == 0 || seqstate == 1) {
               PWM2S1P1 = 60;
               PWM2CONbits.LD = 1;
             }
-            if (seqstate == 0 || seqstate == 2) {
+            if (seqstate == 0 || seqstate > 1) {
               PWM1S1P1 = 0;
               PWM1CONbits.LD = 1;
             }
@@ -131,23 +110,6 @@ __interrupt() void incoming() {
     }
 }
 
-char getch() {
-    unsigned char data;
-
-    while(!queuesize) {
-    }
-    data = queue[queueread & 15];
-    queueread++;
-    queuesize--;
-    return data;
-}
-
-void putch(unsigned char data) {
-  while(!PIR4bits.TX1IF) {          // wait until the transmitter is ready
-  }
-  TX1REG = data;                     // send one character
-}
-
 unsigned int sentkeys = 0;
 unsigned int oldkeys = 0;
 unsigned int keys = 0;
@@ -155,6 +117,56 @@ unsigned int same = 0;
 unsigned char octave = 60;
 unsigned char msg;
 unsigned char rate;
+unsigned char tmp;
+
+// Sequencer related
+unsigned short beatcount = 0;
+unsigned char note = 0;
+unsigned char onoff = 0;
+unsigned char notes[5] = {0, 0, 0, 0, 0};
+unsigned char state[5] = {0, 0, 0, 0, 0};
+unsigned short currentbeat = 0;
+unsigned char found = 0;
+unsigned char memptr = 0;
+
+
+void seq_write_current() {
+            // We need to write the current data
+            found = 0;
+            for (unsigned char i = 0; i < 5; i++) {
+                if (!notes[i]) continue;
+                if (state[i] & 2) {
+                    found++;
+                    continue;
+                }
+                if (!(state[i] & 1)) {
+                    found++;
+                }
+            }
+            if (found) {
+                msg = currentbeat & 255;
+                write(memptr++, msg);
+                currentbeat = currentbeat >> 5;
+                currentbeat = currentbeat & 0b11111000;
+                currentbeat = currentbeat | found;
+                msg = currentbeat & 255;
+                write(memptr++, msg);
+                for (unsigned char i = 0; i < 5; i++) {
+                    if (!notes[i]) continue;
+                    if (state[i] & 2) {
+                        msg = notes[i] + 128;
+                        write(memptr++, msg);
+                        notes[i] = 0;
+                        state[i] = 0;
+                    } else {
+                      if (!(state[i] & 1)) {
+                          write(memptr++, notes[i]);
+                          state[i] = state[i] | 1;
+                      }
+                    }
+                }
+            }
+}
 
 void noteon(unsigned char note) {
     if (note < 12) {
@@ -206,22 +218,46 @@ void noteon(unsigned char note) {
     PWM2CONbits.LD = 1;
 #endif
 #ifdef SEQUENCER
+    tmp = 0;
     if (note == 12) {
         if (seqstate == 0) {
           PWM2S1P1 = 60;
           PWM2CONbits.LD = 1;
           seqstate = 2;
         } else {
-            seqstate = 0;
+            tmp = 1;
         }
     } else if (note == 13) {
         if (seqstate == 0) {
           PWM1S1P1 = 60;
           PWM1CONbits.LD = 1;
           seqstate = 1;
+          currentbeat = 65535;
         } else {
-            seqstate = 0;
+            tmp = 1;
         }
+    }
+    if (tmp) {
+        if (seqstate > 1) {
+            // Ensure all notes are cleared at the end.
+            for (unsigned char i = 0; i < 5; i++) {
+                state[i] = state[i] | 1;
+            }
+            beatcount++;
+            seq_write_current();
+            write(memptr++, 255);
+            write(memptr++, 255);
+        } else {
+            // And that they stop playing in case of playback.
+            for (unsigned char i = 0; i < 5; i++) {
+                if (notes[i]) {
+                    putch(0x82);
+                    putch(notes[i]);
+                    putch(99);
+                }
+            }
+        }
+        seqstate = 0;
     }
 #endif
 }
@@ -260,30 +296,6 @@ void playdiff(void) {
     }
     sentkeys = oldkeys;
     keys = oldkeys;
-}
-
-unsigned char read(unsigned char location) {
-  // This code block will read 1 word (byte) of DFM
-  NVMCON1bits.NVMREGS = 1; // Point to DFM
-  NVMADRH = 0x070;
-  NVMADRL = location;
-  NVMCON1bits.RD = 1; // Initiate read cycle
-  return NVMDATL;
-}
-
-void write(unsigned char location, unsigned char v) {
-  NVMCON1bits.NVMREGS = 1; // Point to DFM
-  NVMADRH = 0x070;
-  NVMADRL = location;
-  NVMDATL = v;
-  NVMCON1bits.WREN = 1; // Allows program/erase cycles
-  INTCONbits.GIE = 0; // Disable interrupts
-  NVMCON2 = 0x55; // Perform required unlock sequence
-  NVMCON2 = 0xAA;
-  NVMCON1bits.WR = 1; // Begin program/erase cycle
-  INTCONbits.GIE = 1; // Restore interrupt enable bit value
-  NVMCON1bits.WREN = 0; // Disable program/erase
-  NVMCON1bits.WRERR = 0; // Ignore errors
 }
 
 void main(void) {
@@ -340,6 +352,10 @@ void main(void) {
     
     while(1) {
 #ifdef SEQUENCER
+        if (beat) {
+            beatcount++;
+            beat = 0;
+        }
         ADCON0bits.GO = 1;   // Start conversion
 #endif
         
@@ -354,23 +370,117 @@ void main(void) {
             }
         }
         // Then check if there are incoming messages
+#ifndef SEQUENCER
         if (queuesize > 2) {
             msg = getch();
-#ifndef SEQUENCER
             putch(msg);
-#endif
-            if (msg == 0x92) {
+            if ((msg == 0x92) || (msg == 0x82)) {
               msg = getch();
-              msg = msg - 60 + octave;
-#ifndef SEQUENCER
+              tmp = getch();
+              if (tmp == 100) {
+                msg = msg - 60 + octave;
+              }
               putch(msg);
-#endif
+              putch(tmp);
             }
-            msg = getch();
-#ifndef SEQUENCER
-            putch(msg);
-#endif
         }
+#else
+        if (queuesize > 2) {
+            msg = getch();
+            if (msg == 0x92) {
+              note = getch();
+              onoff = getch();
+              if (seqstate > 1) {
+                  if (seqstate == 2) {
+                    seqstate = 3;
+                    beatcount = 0;
+                    currentbeat = 0;
+                    memptr = 0;
+                    for (unsigned char i = 0; i < 5; i++) {
+                        notes[i] = 0;
+                        state[i] = 0;
+                    }
+                  }
+                  found = 255;
+                  for (unsigned char i = 0; i < 5; i++) {
+                      if (notes[i] == note) {
+                          // Same note, check if it needs to be turned off.
+                          if (!onoff) {
+                              state[i] = state[i] | 2;
+                          }
+                          found = 255;
+                          break;
+                      }
+                      if (!notes[i]) {
+                          found = i;
+                      }
+                  }
+                  if (found < 6) {
+                      notes[found] = note;
+                      state[found] = 0;
+                      if (!onoff) {
+                          // Record offs anyway. Just to be sure.
+                          state[found] = 2;
+                      }
+                  }
+              }
+            }
+        }
+        if ((seqstate > 2) && (currentbeat != beatcount)) {
+            // We need to write the current data
+            seq_write_current();
+            currentbeat = beatcount;
+        } else if (seqstate == 1) {
+            if (currentbeat == 65535) {
+                memptr = 0;
+                msg = read(memptr++);
+                currentbeat = read(memptr++);
+                found = currentbeat & 7;
+                currentbeat = currentbeat << 5;
+                currentbeat = currentbeat & 0xFF00;
+                currentbeat = currentbeat + msg;
+                for (unsigned char i = 0; i < 5; i++) notes[i] = 0;
+                beatcount = 0;
+            }
+            if (currentbeat == beatcount) {
+                for (unsigned char i = 0; i < found; i++) {
+                  note = read(memptr++);
+                  if (note & 128) {
+                      putch(0x82); // Use note off to show sequencer.
+                  } else {
+                    putch(0x92);
+                  }
+                  tmp = note & 0x7f;
+                  putch(tmp);
+                  putch(99);
+                  if (note & 128) {
+                      for (unsigned char i = 0; i < 5; i++) {
+                          if (notes[i] == tmp) {
+                              notes[i] = 0;
+                          }
+                      }
+                  } else {
+                      for (unsigned char i = 0; i < 5; i++) {
+                          if (!notes[i]) {
+                              notes[i] = tmp;
+                              break;
+                          }
+                      }
+                  }
+                }
+                msg = read(memptr++);
+                currentbeat = read(memptr++);
+                if (currentbeat == 255) {
+                    currentbeat = 65535;
+                } else {
+                  found = currentbeat & 7;
+                  currentbeat = currentbeat << 5;
+                  currentbeat = currentbeat & 0xFF00;
+                  currentbeat = currentbeat + msg;                
+                }
+            }
+        }
+#endif
         oldkeys = keys;
         if (PORTBbits.RB1) {
           TRISBbits.TRISB1 = 0;
