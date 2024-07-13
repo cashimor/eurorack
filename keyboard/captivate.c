@@ -224,6 +224,7 @@ void noteon(unsigned char note) {
         if (seqstate == 0) {
           PWM2S1P1 = 60;
           PWM2CONbits.LD = 1;
+          putch(0xfa);
           seqstate = 2;
         } else {
             tmp = 1;
@@ -232,6 +233,7 @@ void noteon(unsigned char note) {
         if (seqstate == 0) {
           PWM1S1P1 = 60;
           PWM1CONbits.LD = 1;
+          putch(0xfa);
           seqstate = 1;
           currentbeat = 65535;
         } else {
@@ -258,6 +260,7 @@ void noteon(unsigned char note) {
                 }
             }
         }
+        putch(0xfc);
         seqstate = 0;
     }
 #endif
@@ -358,6 +361,7 @@ void main(void) {
     while(1) {
 #ifdef SEQUENCER
         if (beat) {
+            if (seqstate) putch(0xf8);
             beatcount++;
             beat = 0;
         }
@@ -379,9 +383,13 @@ void main(void) {
         
         // Then check if there are incoming messages
 #ifndef SEQUENCER
+        if (peek() == 0xf8) {
+          getch();
+          putch(0xf8);
+        }
         if (queuesize > 2) {
             msg = getch();
-            putch(msg);
+            putch(msg); // This will make sure clock messages are passed through
             if ((msg == 0x92) || (msg == 0x82)) {
               msg = getch();
               tmp = getch();

@@ -35,7 +35,7 @@ unsigned char queueread = 0;
 unsigned char queuewrite = 0;
 unsigned char queuesize = 0;
 
-char getch() {
+unsigned char getch() {
     unsigned char data;
 
     while(!queuesize) {
@@ -50,6 +50,11 @@ void putch(unsigned char data) {
   while(!PIR4bits.TX1IF) {          // wait until the transmitter is ready
   }
   TX1REG = data;                     // send one character
+}
+
+inline unsigned char peek() {
+    if (!queuesize) return 0;
+    return queue[queueread & 15];
 }
 #endif
 

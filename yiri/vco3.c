@@ -56,7 +56,7 @@
 #include <xc.h>
 
 #define _XTAL_FREQ 1000000
-#define OSCS 4
+#define OSCS 5
 
 
 const unsigned short lookup[128] = {
@@ -73,6 +73,13 @@ const unsigned short lookup[128] = {
     118, 111, 105, 99, 94, 88, 83, 79  // 120-127 (C9-G9)    
 };
 
+enum Event {
+    DRUMON,
+    DRUMOFF,
+    NOTE,
+    CLOCK,
+    NOOP,
+};
 
 void PWM1_Initialize(void) {
  PWM1ERS = 0x00; // PWMERS External Reset Disabled;
@@ -151,7 +158,7 @@ void PWM4_Initialize(void) {
 }
 
 void DAC_Initialize(void) {
-    DAC1CON = 0b10100000; // EN, auto range, RB7 and RA2, Vdd, Vss
+    DAC1CON = 0b10010000; // EN, auto range, RB7 and RA2, Vdd, Vss
     CPCONbits.CPON = 1;
 }
 
@@ -178,11 +185,11 @@ unsigned char queue[16];
 unsigned char queueread = 0;
 unsigned char queuewrite = 0;
 unsigned char queuesize = 0;
-unsigned short toloadnote[4] = {0, 0, 0, 0};
-unsigned short toloadpwm[4] = {0, 0, 0, 0};
-unsigned short loadednote[4] = {0, 0, 0, 0};
-unsigned char note[5] = {0, 0, 0, 0};
-unsigned char gate[5] = {0, 0, 0, 0};
+unsigned short toloadnote[OSCS] = {0, 0, 0, 0, 0};
+unsigned short toloadpwm[OSCS] = {0, 0, 0, 0, 0};
+unsigned short loadednote[OSCS] = {0, 0, 0, 0, 0};
+unsigned char note[OSCS] = {0, 0, 0, 0, 0};
+unsigned char gate[OSCS] = {0, 0, 0, 0, 0};
 
 unsigned char midi;
 unsigned char inote;
@@ -191,6 +198,10 @@ unsigned char velocity;
 unsigned char pwm = 128;
 unsigned char pwmold = 128;
 unsigned char clean = 0;
+unsigned int tmp;
+unsigned char loopcount = 0;
+
+enum Event event;
 
 __interrupt() void incoming() {
     queue[queuewrite & 15] = RC1REG;
@@ -203,7 +214,7 @@ __interrupt() void incoming() {
     }    
 }
 
-char getch() {
+unsigned char getch() {
     unsigned char data;
     
     while(!queuesize) {
@@ -214,55 +225,65 @@ char getch() {
     return data;
 }
 
+inline unsigned char peek() {
+    if (!queuesize) return 0;
+    return queue[queueread & 15];
+}
+
+inline void load0() {
+    inote = note[0] << 1;
+    DAC1DATL = inote;
+}
+
 inline void load1() {
     if (PWM1CONbits.LD) return;
-    if ((!toloadnote[0]) && (!toloadpwm[0])) return;
-    if (toloadnote[0]) {
-        PWM1PR = toloadnote[0];
-        loadednote[0] = toloadnote[0];
+    if ((!toloadnote[1]) && (!toloadpwm[1])) return;
+    if (toloadnote[1]) {
+        PWM1PR = toloadnote[1];
+        loadednote[1] = toloadnote[1];
     }
-    if (toloadpwm[0]) PWM1S1P1 = toloadpwm[0];
-    toloadnote[0] = 0;
-    toloadpwm[0] = 0;
+    if (toloadpwm[1]) PWM1S1P1 = toloadpwm[1];
+    toloadnote[1] = 0;
+    toloadpwm[1] = 0;
     PWM1CONbits.LD = 1;
 }
 
 inline void load2() {
     if (PWM2CONbits.LD) return;
-    if ((!toloadnote[1]) && (!toloadpwm[1])) return;
-    if (toloadnote[1]) {
-        PWM2PR = toloadnote[1];
-        loadednote[1] = toloadnote[1];
+    if ((!toloadnote[2]) && (!toloadpwm[2])) return;
+    if (toloadnote[2]) {
+        PWM2PR = toloadnote[2];
+        loadednote[2] = toloadnote[2];
     }
-    if (toloadpwm[1]) PWM2S1P1 = toloadpwm[1];
-    toloadnote[1] = 0;
-    toloadpwm[1] = 0;
+    if (toloadpwm[2]) PWM2S1P1 = toloadpwm[2];
+    toloadnote[2] = 0;
+    toloadpwm[2] = 0;
     PWM2CONbits.LD = 1;
 }
 
 inline void load3() {
     if (PWM3CONbits.LD) return;
-    if ((!toloadnote[2]) && (!toloadpwm[2])) return;
-    if (toloadnote[2]) {
-        PWM3PR = toloadnote[2];
-        loadednote[2] = toloadnote[2];
+    if ((!toloadnote[3]) && (!toloadpwm[3])) return;
+    if (toloadnote[3]) {
+        PWM3PR = toloadnote[3];
+        loadednote[3] = toloadnote[3];
     }
-    if (toloadpwm[2]) PWM3S1P1 = toloadpwm[2];
-    toloadnote[2] = 0;
-    toloadpwm[2] = 0;
+    if (toloadpwm[3]) PWM3S1P1 = toloadpwm[3];
+    toloadnote[3] = 0;
+    toloadpwm[3] = 0;
     PWM3CONbits.LD = 1;
 }
 
 inline void load4() {
     if (PWM4CONbits.LD) return;
-    if ((!toloadnote[3]) && (!toloadpwm[3])) return;
-    if (toloadnote[3]) {
-        PWM4PR = toloadnote[3];
-        loadednote[3] = toloadnote[3];
+    if ((!toloadnote[4]) && (!toloadpwm[4])) return;
+    if (toloadnote[4]) {
+        PWM4PR = toloadnote[4];
+        loadednote[4] = toloadnote[4];
     }
-    if (toloadpwm[3]) PWM4S1P1 = toloadpwm[3];
-    toloadnote[3] = 0;
-    toloadpwm[3] = 0;
+    if (toloadpwm[4]) PWM4S1P1 = toloadpwm[4];
+    toloadnote[4] = 0;
+    toloadpwm[4] = 0;
     PWM4CONbits.LD = 1;
 }
 
@@ -339,27 +360,92 @@ void main(void) {
     
     DAC_Initialize();
 
-/*
     while(1) {
-        PORTBbits.RB7 = 1;
-        DAC1DATL = 64;
-    }
-    */
-    
-    while(1) {
+      loopcount++;
+      if (loopcount > 5) {
+          PORTBbits.RB2 = 0;
+          loopcount = 0;
+      }
+      if (peek() == 0xf8) {
+        getch();
+        PORTBbits.RB2 = 1;
+        loopcount = 0;
+      }
       if (queuesize > 2) {
         midi = getch();
-        // TODO(add midi off check)
-        if (midi == 0x99 || midi == 0x92) {
-          inote = getch();
-          velocity = getch();
-          if (velocity > 0) {
-            if (!clean) {
+        switch(midi) {
+          case 0x82:
+            inote = getch();
+            velocity = getch();
+            velocity = 0;
+            event = NOTE;
+            break;
+          case 0x92:
+            inote = getch();
+            velocity = getch();
+            event = NOTE;
+            break;
+          case 0x89:
+            inote = getch();
+            velocity = getch();
+            velocity = 0;
+            event = DRUMOFF;            
+            break;
+          case 0x99:
+            inote = getch();
+            velocity = getch();
+            if (velocity) {
+              event = DRUMON;
+            } else {
+              event = DRUMOFF;
+            }
+            break;
+        }
+        switch(event) {
+          case DRUMON:
+            switch(inote) {
+                case 35:
+                    PORTCbits.RC1 = 1;
+                    break;
+                case 38:
+                    PORTCbits.RC0 = 1;
+                    break;
+                case 39:
+                    PORTBbits.RB0 = 1;
+                    break;
+                case 42:
+                    PORTBbits.RB3 = 1;
+                    break;
+                case 46:
+                    PORTBbits.RB1 = 1;
+            }
+            break;
+          case DRUMOFF:
+            switch(inote) {
+                case 35:
+                    PORTCbits.RC1 = 0;
+                    break;
+                case 38:
+                    PORTCbits.RC0 = 0;
+                    break;
+                case 39:
+                    PORTBbits.RB0 = 0;
+                    break;
+                case 42:
+                    PORTBbits.RB3 = 0;
+                    break;
+                case 46:
+                    PORTBbits.RB1 = 0;
+            }
+            break;
+          case NOTE:
+            if (velocity > 0) {
+              if (!clean) {
                 clean_oscs();
                 clean = 1;
-            }
-            if ((inote != note[0]) && (inote != note[1]) && (inote != note[2])
-                    && (inote != note[3])) {
+              }
+              if ((inote != note[0]) && (inote != note[1]) && (inote != note[2])
+                    && (inote != note[3]) && (inote != note[4])) {
                 for (unsigned char i = 0; i < OSCS; i++) {
                     if (!gate[i]) {
                         note[i] = inote;
@@ -369,30 +455,34 @@ void main(void) {
                         break;
                     }
                 }
-            }
-          } else {
-            for (unsigned char i = 0; i < OSCS; i++) {
+              }
+            } else {
+              for (unsigned char i = 0; i < OSCS; i++) {
                 if (inote == note[i]) {
                     note[i] = 0;
                     gate[i] = 0;
                 }
+              }
             }
-          }
+            break;
         }
       }
+      load0();
+      PORTCbits.RC3 = gate[0];
       load1();
       load2();
       load3();
       load4();
       if (!ogate) {
-        if (gate[0] || gate[1] || gate[2] || gate[3]) {
-            if (!toloadnote[0] && !toloadnote[1] && !toloadnote[2] && !toloadnote[3]) {
+        if (gate[1] || gate[2] || gate[3] || gate[4]) {
+            if (!toloadnote[1] && !toloadnote[2] && !toloadnote[3]
+                && !toloadnote[4]) {
               ogate = 1;
               PORTCbits.RC2 = 1;
             }
         }
       } else {
-          if (!gate[0] && !gate[1] && !gate[2] && !gate[3]) {
+          if (!gate[1] && !gate[2] && !gate[3] && !gate[4]) {
               PORTCbits.RC2 = 0;
               ogate = 0;
               clean = 0;
