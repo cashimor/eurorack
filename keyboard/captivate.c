@@ -19,6 +19,7 @@
 // These are the different types of keyboards
 #define OCTAVE_SWITCH
 //#define OCTAVE_1
+//#define OCTAVE_2
 //#define SEQUENCER
 
 
@@ -335,6 +336,10 @@ void main(void) {
 #ifdef OCTAVE_1
     octave = 72;
 #endif
+#ifdef OCTAVE_2
+    octave = 84;
+#endif
+    
 #ifdef SEQUENCER
     init_timer();
     PWM1S1P1 = 30;
@@ -362,13 +367,16 @@ void main(void) {
         // First we see if the last read was the same.
         if (oldkeys == keys) {
             same++;
-            if (same > 10) {
+            if (same > 50) {
                 same = 0;
                 if (keys != sentkeys) {
                     playdiff();
                 }
             }
+        } else {
+            same = 0;
         }
+        
         // Then check if there are incoming messages
 #ifndef SEQUENCER
         if (queuesize > 2) {
@@ -377,9 +385,11 @@ void main(void) {
             if ((msg == 0x92) || (msg == 0x82)) {
               msg = getch();
               tmp = getch();
-              if (tmp == 100) {
+#ifdef OCTAVE_SWITCH
+              if (tmp != 99) {
                 msg = msg - 60 + octave;
               }
+#endif
               putch(msg);
               putch(tmp);
             }
