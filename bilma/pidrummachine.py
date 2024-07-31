@@ -91,6 +91,16 @@ def noisewave(length, decay, pitch):
         tone_volume = tone_volume * decay
     return noise
 
+def alternate(drums, select):
+    if drums == 0:
+        select = select + 1
+        if select > 7:
+            select = 0
+    else:
+        drums = drums + 1
+        if drums > 4:
+            drums = 1
+    return drums, select
 
 # what keys to use as our drum machine
 keys = keypad.Keys((board.GP16, board.GP17, board.GP18, board.GP19, board.GP20),
@@ -128,22 +138,31 @@ while True:
   reading = adc.value
   select = reading & 57344;
   if select == 32768:
-      drums = "1"
+      drums = 1
   elif select == 40960:
-      drums = "2"
+      drums = 2
   elif select == 49152:
-      drums = "3"
+      drums = 3
   elif select == 57344:
-      drums = "4"
+      drums = 4
   else:
-      drums = "0"
+      drums = 0
       select = int(reading / 4096)
-
+  swap = reading & 512
   event = keys.events.get()
   if event and event.pressed:
       n = event.key_number
-      if drums != "0":
-          wave = audiocore.WaveFile(open(wav_files[n] + drums + ".wav", "rb"))
+      level = 1
+      print(select, swap)
+      if swap:
+          if n == 2:
+              drums, select = alternate(drums, select)
+              n = 1
+          elif n == 4:
+              drums, select = alternate(drums, select)
+              n = 0
+      if drums > 0:
+          wave = audiocore.WaveFile(open(wav_files[n] + str(drums) + ".wav", "rb"))
       else:
           wave = combo[select][n]
       mixer.voice[n].play(wave)
