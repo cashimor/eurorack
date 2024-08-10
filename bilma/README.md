@@ -11,4 +11,4 @@ samples set 3 from: RytmenPinnen (SemiLoopDrumsamples), ankealtd (Meinl_Byzance_
 samples set 4 from: IanStarGem (Electronic Snare Drum 4, Simple Kick Drum, Electronic Closed Hihat #2, Electronic Snare Drum #3)
 additional samples from: pomeroyjoshua (Anu Clap 06, HH Op 04)
 
-This is a functioning prototype.
+This is a tested circuit. The PCB and schematic will work as included in this repository.
