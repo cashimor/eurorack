@@ -12,4 +12,6 @@ samples set 4 from: IanStarGem (Electronic Snare Drum 4, Simple Kick Drum, Elect
 additional samples from: pomeroyjoshua (Anu Clap 06, HH Op 04)
 
 This is a tested circuit. The PCB and schematic will work as included in this repository. Bugs:
-Access to the USB connector is a bit cramped after placing the PICO on the board.
+Access to the USB connector is a bit cramped after placing the PICO on the board, but it would work with a 90 degree connector.
+
+The "beat.c" file is for a 16F684 to add a drum sequencer.
