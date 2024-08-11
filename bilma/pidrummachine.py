@@ -91,16 +91,16 @@ def noisewave(length, decay, pitch):
         tone_volume = tone_volume * decay
     return noise
 
-def alternate(drums, select):
-    if drums == 0:
-        select = select + 1
-        if select > 7:
-            select = 0
-    else:
-        drums = drums + 1
-        if drums > 4:
-            drums = 1
-    return drums, select
+#def alternate(drums, select):
+#    if drums == 0:
+#        select = select + 1
+#        if select > 7:
+#            select = 0
+#    else:
+#        drums = drums + 1
+#        if drums > 4:
+#            drums = 1
+#    return drums, select
 
 # what keys to use as our drum machine
 keys = keypad.Keys((board.GP16, board.GP17, board.GP18, board.GP19, board.GP20),
@@ -120,17 +120,17 @@ openhh = audiocore.RawSample(metalwave(10000, 0.9997, 45, 87, 353, 452, 493, 0.8
 snare1 = audiocore.RawSample(noisewave(5000, 0.9993, 0), channel_count = 1, sample_rate = 22050)
 snare2 = audiocore.RawSample(noisewave(5000, 0.9992, 3), channel_count = 1, sample_rate = 22050)
 clap = audiocore.RawSample(noisewave(2500, 0.998, 4), channel_count = 1, sample_rate = 22050)
-hihat1 = audiocore.RawSample(metalwave(2500, 0.9985, 3, 13, 133, 251, 333, 0), channel_count = 1, sample_rate = 22050)
-hihat2 = audiocore.RawSample(metalwave(2500, 0.9989, 9, 77, 5, 249, 363, 0.5), channel_count = 1, sample_rate = 22050)
+hihat1 = audiocore.RawSample(metalwave(2500, 0.9985, 2, 3, 50, 7, 109, 1), channel_count = 1, sample_rate = 22050)
+hihat2 = audiocore.RawSample(metalwave(2500, 0.997, 9, 2, 5, 37, 3, 0.8), channel_count = 1, sample_rate = 22050)
 
-c1 = ( bass1, snare1, clap, hihat1, openhh )
-c2 = ( bass2, snare1, clap, hihat1, openhh )
-c3 = ( bass1, snare2, clap, hihat1, openhh )
-c4 = ( bass2, snare2, clap, hihat1, openhh )
-c5 = ( bass1, snare1, clap, hihat2, openhh )
-c6 = ( bass2, snare1, clap, hihat2, openhh )
-c7 = ( bass1, snare2, clap, hihat2, openhh )
-c8 = ( bass2, snare2, clap, hihat2, openhh )
+c1 = ( bass1, snare1, clap, openhh, hihat1 )
+c2 = ( bass2, snare1, clap, openhh, hihat1 )
+c3 = ( bass1, snare2, clap, openhh, hihat1 )
+c4 = ( bass2, snare2, clap, openhh, hihat1 )
+c5 = ( bass1, snare1, clap, openhh, hihat2 )
+c6 = ( bass2, snare1, clap, openhh, hihat2 )
+c7 = ( bass1, snare2, clap, openhh, hihat2 )
+c8 = ( bass2, snare2, clap, openhh, hihat2 )
 
 combo = ( c1, c2, c3, c4, c5, c6, c7, c8 )
 
@@ -148,19 +148,17 @@ while True:
   else:
       drums = 0
       select = int(reading / 4096)
-  swap = reading & 512
+  #swap = reading & 512
   event = keys.events.get()
   if event and event.pressed:
       n = event.key_number
-      level = 1
-      print(select, swap)
-      if swap:
-          if n == 2:
-              drums, select = alternate(drums, select)
-              n = 1
-          elif n == 4:
-              drums, select = alternate(drums, select)
-              n = 0
+#      if swap:
+#          if n == 2:
+#              drums, select = alternate(drums, select)
+#              n = 1
+#          elif n == 4:
+#              drums, select = alternate(drums, select)
+#              n = 0
       if drums > 0:
           wave = audiocore.WaveFile(open(wav_files[n] + str(drums) + ".wav", "rb"))
       else:
