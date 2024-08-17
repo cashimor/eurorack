@@ -145,6 +145,8 @@ while True:
       drums = 3
   elif select == 57344:
       drums = 4
+      if reading > 61440:
+          drums = 5
   else:
       drums = 0
       select = int(reading / 4096)
