@@ -104,7 +104,7 @@ def noisewave(length, decay, pitch):
 
 # what keys to use as our drum machine
 keys = keypad.Keys((board.GP16, board.GP17, board.GP18, board.GP19, board.GP20),
-                   value_when_pressed=True, pull=True)
+                   value_when_pressed=True, pull=True, interval=0.001, max_events=10)
 
 audio = AudioOut(board.GP15)
 mixer = audiomixer.Mixer(voice_count=10, sample_rate=22050, channel_count=1,
