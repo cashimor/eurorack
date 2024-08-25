@@ -181,6 +181,18 @@ void init_uart(void) {
   INTCONbits.GIE = 1;
 }
 
+typedef union {
+    struct {
+        unsigned e39:1;
+        unsigned e46:1;
+        unsigned clock:1;
+        unsigned e42:1;
+    };
+    uint8_t byte;
+} drum_t;
+
+drum_t portb;
+
 unsigned char queue[16];
 unsigned char queueread = 0;
 unsigned char queuewrite = 0;
@@ -202,6 +214,7 @@ unsigned int tmp;
 unsigned char loopcount = 0;
 
 enum Event event;
+
 
 __interrupt() void incoming() {
     queue[queuewrite & 15] = RC1REG;
@@ -232,6 +245,7 @@ inline unsigned char peek() {
 
 inline void load0() {
     inote = note[0] << 1;
+    if (!inote) return;
     DAC1DATL = inote;
 }
 
@@ -332,8 +346,10 @@ void main(void) {
     PWM3_Initialize();
     PWM4_Initialize();
     PORTA = 0x00;
+    PORTB = 0x00;
     PORTC = 0x00;
     LATA = 0x00;
+    LATB = 0x00;
     LATC = 0x00;
     ANSELA = 0x00;
     ANSELC = 0x00;
@@ -361,15 +377,16 @@ void main(void) {
     DAC_Initialize();
 
     while(1) {
+      PORTB = portb.byte;
       loopcount++;
       if (loopcount > 5) {
-          PORTBbits.RB2 = 0;
+          portb.clock = 0;
           loopcount = 0;
       }
       if (peek() == 0xf8) {
-        getch();
-        PORTBbits.RB2 = 1;
-        loopcount = 0;
+          getch();
+          portb.clock = 1;
+          loopcount = 0;
       }
       if (queuesize > 2) {
         midi = getch();
@@ -400,6 +417,8 @@ void main(void) {
               event = DRUMOFF;
             }
             break;
+          default:
+            event = NOOP;
         }
         switch(event) {
           case DRUMON:
@@ -411,13 +430,13 @@ void main(void) {
                     PORTCbits.RC0 = 1;
                     break;
                 case 39:
-                    PORTBbits.RB0 = 1;
+                    portb.e39 = 1;
                     break;
                 case 42:
-                    PORTBbits.RB3 = 1;
+                    portb.e42 = 1;
                     break;
                 case 46:
-                    PORTBbits.RB1 = 1;
+                    portb.e46 = 1;
             }
             break;
           case DRUMOFF:
@@ -429,13 +448,13 @@ void main(void) {
                     PORTCbits.RC0 = 0;
                     break;
                 case 39:
-                    PORTBbits.RB0 = 0;
+                    portb.e39 = 0;
                     break;
                 case 42:
-                    PORTBbits.RB3 = 0;
+                    portb.e42 = 0;
                     break;
                 case 46:
-                    PORTBbits.RB1 = 0;
+                    portb.e46 = 0;
             }
             break;
           case NOTE:
