@@ -79,6 +79,7 @@ enum Event {
     NOTE,
     CLOCK,
     NOOP,
+    SKIP,
 };
 
 void PWM1_Initialize(void) {
@@ -203,6 +204,9 @@ unsigned short loadednote[OSCS] = {0, 0, 0, 0, 0};
 unsigned char note[OSCS] = {0, 0, 0, 0, 0};
 unsigned char gate[OSCS] = {0, 0, 0, 0, 0};
 
+unsigned char mode = 0;
+unsigned char osc0 = 0;
+
 unsigned char midi;
 unsigned char inote;
 unsigned char ogate = 0;
@@ -212,7 +216,7 @@ unsigned char pwmold = 128;
 unsigned char clean = 0;
 unsigned int tmp;
 unsigned char loopcount = 0;
-
+unsigned char forceone = 0;
 enum Event event;
 
 
@@ -390,13 +394,36 @@ void main(void) {
       }
       if (queuesize > 2) {
         midi = getch();
+        forceone = 0;
         switch(midi) {
+          case 0xb2: // CC
+            inote = getch();
+            velocity = getch();
+            if (inote == 70) {
+              mode = velocity;
+            }
+            if (mode) {
+                osc0 = 1;
+            } else {
+                osc0 = 0;
+            }
+            event = SKIP;
+            break;
+          case 0xc2:  // Set instrument
+            event = SKIP;
+            inote = getch();
+            velocity = getch();
+            break;
+          case 0x83:
+            forceone = 1;
           case 0x82:
             inote = getch();
             velocity = getch();
             velocity = 0;
             event = NOTE;
             break;
+          case 0x93:
+            forceone = 1;
           case 0x92:
             inote = getch();
             velocity = getch();
@@ -463,9 +490,17 @@ void main(void) {
                 clean_oscs();
                 clean = 1;
               }
-              if ((inote != note[0]) && (inote != note[1]) && (inote != note[2])
+              if (forceone) {
+                  note[0] = inote;
+                  gate[0] = 1;
+                  toloadnote[0] = lookup[inote];
+                  toloadpwm[0] = compute_pwm(toloadnote[0]);
+                  break;
+              }
+              if ((inote != note[osc0]) && (inote != note[1])
+                    && (inote != note[2])
                     && (inote != note[3]) && (inote != note[4])) {
-                for (unsigned char i = 0; i < OSCS; i++) {
+                for (unsigned char i = osc0; i < OSCS; i++) {
                     if (!gate[i]) {
                         note[i] = inote;
                         gate[i] = 1;
@@ -476,7 +511,14 @@ void main(void) {
                 }
               }
             } else {
-              for (unsigned char i = 0; i < OSCS; i++) {
+              if (forceone) {
+                  if (inote == note[0]) {
+                      note[0] = 0;
+                      gate[0] = 0;
+                  }
+                  break;
+              }
+              for (unsigned char i = osc0; i < OSCS; i++) {
                 if (inote == note[i]) {
                     note[i] = 0;
                     gate[i] = 0;
