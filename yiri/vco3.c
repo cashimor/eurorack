@@ -416,6 +416,7 @@ void main(void) {
             break;
           case 0x83:
             forceone = 1;
+            // Fallthrough expected.
           case 0x82:
             inote = getch();
             velocity = getch();
@@ -424,6 +425,7 @@ void main(void) {
             break;
           case 0x93:
             forceone = 1;
+            // Fallthrough expected.
           case 0x92:
             inote = getch();
             velocity = getch();
@@ -445,7 +447,12 @@ void main(void) {
             }
             break;
           default:
+            // This means we are confused. Let's make sure to clear the queue.
             event = NOOP;
+            while (queuesize > 0) {
+                getch();
+            }
+            break;
         }
         switch(event) {
           case DRUMON:
