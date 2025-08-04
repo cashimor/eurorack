@@ -1,3 +1,13 @@
 The Pick and Place, Gerber and BOM files are for version 0, which has two errors:
 * R3 needs to be removed, and a 1k resistor needs to be put between the top pad of R3 to the top part of the trim potentiometer
 * A 100nF capacitor needs to be added from the middle of the glide potentiometer to ground (best is to use the jack ground)
+
+The "learn" button works as follows:
+* When used without any MIDI data coming in: it will reset settings to default
+* When used after a note is played: it will set the channel to the channel of that note, and make that note 0V
+* When used after a CC was done: it will set the channel to the channel of that CC, and make that CC the only one it responds to
+
+Default settings:
+* Listen to all channels
+* Note 0 is 0V
+* Listen to all CC
