@@ -73,13 +73,13 @@ unsigned char queuewrite = 0;
 unsigned char queuesize = 0;
 
 /**
- * @brief Reads a byte from the Data Flash Memory (DFM).
+ * @brief Reads a byte from the Data EEPROM.
  * @param location The address to read from (0x00-0xFF).
  * @return The data byte read from the specified location.
  */
 unsigned char read(unsigned char location) {
-  // This code block will read 1 word (byte) of DFM
-  NVMCON1bits.NVMREGS = 1; // Point to DFM
+  // This code block will read 1 word (byte) of Data EEPROM
+  NVMCON1bits.NVMREGS = 1; // Point to Data EEPROM
   NVMADRH = 0x0F0;
   NVMADRL = location;
   NVMCON1bits.RD = 1; // Initiate read cycle
@@ -87,14 +87,14 @@ unsigned char read(unsigned char location) {
 }
 
 /**
- * @brief Writes a byte to the Data Flash Memory (DFM).
+ * @brief Writes a byte to the Data EEPROM.
  * @param location The address to write to (0x00-0xFF).
  * @param v The data byte to write.
  */
 void write(unsigned char location, unsigned char v) {
   // Wait for any previous write to complete.
   while (NVMCON1bits.WR);
-  NVMCON1bits.NVMREGS = 1; // Point to DFM
+  NVMCON1bits.NVMREGS = 1; // Point to Data EEPROM
   NVMADRH = 0x0F0;
   NVMADRL = location;
   NVMDATL = v;
@@ -324,7 +324,7 @@ void main(void) {
     // Initialize CV outputs
     load2(pitchbend, modulation);
     
-    // Load saved settings from DFM
+    // Load saved settings from Data EEPROM
     note_offset = read(0);
     selected_channel = read(1);
     selected_cc = read(2);
