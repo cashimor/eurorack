@@ -345,6 +345,10 @@ void main(void) {
                 case 0x90: // Note On
                     if (selected_channel != 0xFF && current_channel != selected_channel) break;
                     raw_note = value;         // Raw note for offset learn
+                    // Reset current_cc to isolate learn context to Note On events.
+                    // This prevents learning a new CC from a stale value if a
+                    // Note On is received after a CC message.
+                    current_cc = selected_cc;
                     value = getch();          // Get velocity
                     if (value > 0) { // Note On with velocity > 0
                         load1(raw_note - note_offset, value); // Apply offset here
