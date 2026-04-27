@@ -644,7 +644,7 @@ void main(void) {
                     } else if (current_note == 79) {
                         midi_sustain = current_velocity << 1;
                     } else {
-                        break;
+                        kill_note(current_velocity);
                     }
                     if (lastmidi != 0xb2) {
                        putch2(0xb2);
@@ -693,7 +693,6 @@ void main(void) {
                         midi_sustain = current_velocity << 1;
                     } else {                    
                         kill_note(current_velocity);
-                        break;
                     }
                     if (lastmidi != 0xb2) {
                        putch2(0xb2);
