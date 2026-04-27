@@ -551,6 +551,7 @@ void main(void) {
     unsigned char maxvel = 0;
     unsigned char rt = 1, rv = 1, at = 1, av = 1, dt = 1, dv = 1, sustain = 255;
     unsigned char pedal = 0;
+    unsigned char midi_pwm = 255, midi_attack = 255, midi_decay = 255, midi_sustain = 255, midi_release = 255, active_output = 0;
     
     init_timer2();
     init_uart2();
@@ -632,13 +633,25 @@ void main(void) {
                         } else {
                             pedal = 0;
                         }
-                        if (lastmidi != 0xb2) {
-                           putch2(0xb2);
-                           lastmidi = 0xb2;
-                        }
-                        putch2(current_note);
-                        putch2(current_velocity);
+                    } else if (current_note == 1) {
+                        midi_pwm = current_velocity << 1;
+                    } else if (current_note == 73) {
+                        midi_attack = current_velocity << 1;
+                    } else if (current_note == 72) {
+                        midi_release = current_velocity << 1;
+                    } else if (current_note == 75) {
+                        midi_decay = current_velocity << 1;
+                    } else if (current_note == 79) {
+                        midi_sustain = current_velocity << 1;
+                    } else {
+                        break;
                     }
+                    if (lastmidi != 0xb2) {
+                       putch2(0xb2);
+                       lastmidi = 0xb2;
+                    }
+                    putch2(current_note);
+                    putch2(current_velocity);
                     break;
             }
         }
@@ -668,16 +681,26 @@ void main(void) {
                         } else {
                             pedal = 0;
                         }
-                        if (lastmidi != 0xb2) {
-                           putch2(0xb2);
-                           lastmidi = 0xb2;
-                        }
-                        putch2(current_note);
-                        putch2(current_velocity);
-
+                    } else if (current_note == 1) {
+                        midi_pwm = current_velocity << 1;
+                    } else if (current_note == 73) {
+                        midi_attack = current_velocity << 1;
+                    } else if (current_note == 72) {
+                        midi_release = current_velocity << 1;
+                    } else if (current_note == 75) {
+                        midi_decay = current_velocity << 1;
+                    } else if (current_note == 79) {
+                        midi_sustain = current_velocity << 1;
                     } else {                    
                         kill_note(current_velocity);
+                        break;
                     }
+                    if (lastmidi != 0xb2) {
+                       putch2(0xb2);
+                       lastmidi = 0xb2;
+                    }
+                    putch2(current_note);
+                    putch2(current_velocity);
                     break;
             }
         }
@@ -690,7 +713,7 @@ void main(void) {
           ADCON0bits.GO = 1; // Start next conversion
           switch (currentadc) {
               case 0: // This means a roll over, so it was 4.
-                pwm = adcresult[4];
+                pwm = (midi_pwm != 255) ? midi_pwm : adcresult[4];
                 if (pwm != pwmold) {
                   for (unsigned char i = 0; i < OSCS; i++) {
                     toloadpwm[i] = compute_pwm(pwm, loadednote[i]);
@@ -699,21 +722,21 @@ void main(void) {
                 pwmold = pwm;
                 break;
               case 1: // This is 0 (release)
-                  value = adcresult[0] >> 2;
+                  value = (midi_release != 255) ? midi_release >> 2 : adcresult[0] >> 2;
                   rt = adsr[value] >> 4;
                   if (pedal) rt = (rt + 1) << 1;
                   rv = (adsr[value] & 0x0f) + 1;
                   break;
               case 2: // This is 1 (sustain)
-                  sustain = adcresult[1];
+                  sustain = (midi_sustain != 255) ? midi_sustain : adcresult[1];
                   break;
               case 3: // This is 2 (decay)
-                  value = adcresult[2] >> 2;
+                  value = (midi_decay != 255) ? midi_decay >> 2 : adcresult[2] >> 2;
                   dt = adsr[value] >> 4;
                   dv = (adsr[value] & 0x0f) + 1;                  
                   break;
               case 4: // This is 3 (attack)
-                  value = adcresult[3] >> 2;
+                  value = (midi_attack != 255) ? midi_attack >> 2 : adcresult[3] >> 2;
                   at = adsr[value] >> 4;
                   av = ((adsr[value] & 0x0f) + 1) << 2;
                   break;             
@@ -790,6 +813,16 @@ void main(void) {
                 break;
             }
             if (velocity[i] > maxvel) maxvel = velocity[i];
+          }
+          if (maxvel > 0) {
+              active_output = 1;
+          } else if (active_output) {
+              midi_pwm = 255;
+              midi_attack = 255;
+              midi_decay = 255;
+              midi_sustain = 255;
+              midi_release = 255;
+              active_output = 0;
           }
       }
       if (gate[0] || gate[1] || gate[2] || gate[3]) {
