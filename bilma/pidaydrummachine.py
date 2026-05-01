@@ -1,168 +1,128 @@
 # pidaydrummachine.py - Pi Day Drum Machine
 # 14 Mar 2021 - @todbot / Tod Kurt
 # 29 Jul 2024 - @cashimor / Maarten Hofman: Eurorack
+# 12 Apr 2026 - @cashimor / Improve switching
+# 01 May 2026 - @cashimor / Load samples again
 
-# samples from https://freesound.org -- License: Creative Commons 0
-# samples set 1 from: Trvth (Snare1Drum, PedalHiHat1, Ride1Drum, HiHatOpen1Drum, Bass1Drum, Crash1Drum)
-# samples set 2 from: BaDoink (Drum Kit Pack 1), DigitalUnderglow (drumhit_Clap3)
-# samples set 3 from: RytmenPinnen (SemiLoopDrumsamples), ankealtd (Meinl_Byzance_16_Extra_Dry_Thin_Crash_H_3)
-# samples set 4 from: IanStarGem (Electronic Snare Drum 4, Simple Kick Drum, Electronic Closed Hihat #2, Electronic Snare Drum #3)
-# additional samples from: pomeroyjoshua (Anu Clap 06, HH Op 04)
-
+import array
 import time
 import board
-import keypad
-import array
 import audiocore
 import audiomixer
 import analogio
-import math
-import random
+import digitalio
+import os
 from audiopwmio import PWMAudioOut as AudioOut
 
-wav_files = (
-    "wav/bass/",
-    "wav/snare/",
-    "wav/clap/",
-    "wav/open/",
-    "wav/closed/",
-)
+# --- Configuration ---
+SAMPLE_RATE = 22050
+# Arrays to hold the raw audio data
+# We size these to the largest expected sample (e.g., 10000 for long kicks/open hats)
+kick_buf  = array.array("h", [0] * 10000) # 10k samples * 2 bytes (16-bit)
+snare_buf = array.array("h", [0] * 5000)
+clap_buf  = array.array("h", [0] * 2500)
+hh_buf    = array.array("h", [0] * 2500)
+ohh_buf   = array.array("h", [0] * 10000)
 
-def metalwave(length, decay, p1, p2, p3, p4, p5, n):
-    noise = array.array("h", [0] * length)
-    tone_volume = 1
-    c1 = 0
-    c2 = 0
-    c3 = 0
-    c4 = 0
-    c5 = 0
-    osc1 = -32767
-    osc2 = -32767
-    osc3 = -32767
-    osc4 = -32767
-    osc5 = -32767
-    noise = array.array("h", [0] * length)
-    for i in range(0, length):
-        c1 = c1 + 1
-        if c1 > p1:
-            c1 = 0
-            osc1 = -osc1
-        c2 = c2 + 1
-        if c2 > p2:
-            c2 = 0
-            osc2 = -osc2
-        c3 = c3 + 1
-        if c3 > p3:
-            c3 = 0
-            osc3 = -osc3
-        c4 = c4 + 1
-        if c4 > p4:
-            c4 = 0
-            osc4 = -osc4
-        c5 = c5 + 1
-        if c5 > p5:
-            c5 = 0
-            osc5 = -osc5
-        value = (osc1 + osc2 + osc3 + osc4 + osc5) / 6
-        value = (value + int(random.random() * n * 32767)) / 2
-        noise[i] = int(value * tone_volume)
-        tone_volume = tone_volume * decay
-    return noise
 
-def sinewave(length, decay, pitch):
-    tone_volume = 1
-    sine_wave = array.array("h", [0] * length)
-    for i in range(length):
-        sine_wave[i] = int(math.sin(math.pi * 2 * i / (pitch + (i/75))) * tone_volume * 32767)
-        tone_volume = tone_volume * decay
-    return sine_wave
+# The 16 "Drum Kits" defined by your matrix (Kick, Snare, Clap, HH, OHH)
+DRUM_KITS = [
+    (1,1,1,1,1), (1,1,2,2,3), (1,2,3,1,2), (1,3,1,2,1),
+    (1,3,2,1,3), (2,1,3,2,1), (2,1,1,3,3), (2,2,2,2,2),
+    (2,3,3,1,1), (2,3,1,1,2), (3,1,2,3,2), (3,1,3,2,2),
+    (3,2,1,1,2), (3,2,2,1,1), (3,3,3,1,2), (3,3,3,3,3)
+]
 
-def noisewave(length, decay, pitch):
-    tone_volume = 1
-    noise = array.array("h", [0] * length)
-    count = 0
-    value = random.random()
-    for i in range(0, length):
-        count = count + 1
-        if count > pitch:
-            count = 0
-            value = random.random()
-        noise[i] = int(value * tone_volume * 32767)
-        tone_volume = tone_volume * decay
-    return noise
+def load_raw_to_buffer(filename, buffer):
+    """Loads a .raw file into a buffer and zeros out the remainder."""
+    # Zero out the buffer first to clear old sample remnants
+    for i in range(len(buffer)):
+        buffer[i] = 0
 
-#def alternate(drums, select):
-#    if drums == 0:
-#        select = select + 1
-#        if select > 7:
-#            select = 0
-#    else:
-#        drums = drums + 1
-#        if drums > 4:
-#            drums = 1
-#    return drums, select
+    try:
+        with open(f"/raw/{filename}", "rb") as f:
+            f.readinto(buffer)
+    except OSError:
+        print(f"File /raw/{filename} not found!")
 
-# what keys to use as our drum machine
-keys = keypad.Keys((board.GP16, board.GP17, board.GP18, board.GP19, board.GP20),
-                   value_when_pressed=True, pull=True, interval=0.001, max_events=10)
+# --- Hardware Setup ---
+pin_ids = (board.GP16, board.GP17, board.GP18, board.GP19, board.GP20)
+keys = []
+for pin in pin_ids:
+    key = digitalio.DigitalInOut(pin)
+    key.direction = digitalio.Direction.INPUT
+    key.pull = digitalio.Pull.DOWN
+    keys.append(key)
+
+last_states = [False] * len(keys)
+adc = analogio.AnalogIn(board.A2)
 
 audio = AudioOut(board.GP15)
-mixer = audiomixer.Mixer(voice_count=10, sample_rate=22050, channel_count=1,
+mixer = audiomixer.Mixer(voice_count=5, sample_rate=22050, channel_count=1,
                          bits_per_sample=16, samples_signed=True)
-audio.play(mixer) # attach mixer to audio playback, play with mixer.voice[n].play()
-adc = analogio.AnalogIn(board.A2)
-drums = "1"
+audio.play(mixer)
 
-bass1 = audiocore.RawSample(sinewave(10000, 0.9995, 150), channel_count = 1, sample_rate = 22050)
-bass2 = audiocore.RawSample(sinewave(10000, 0.9998, 160), channel_count = 1, sample_rate = 22050)
-# bass3 = audiocore.RawSample(sinewave(10000, 0.9996, 130), channel_count = 1, sample_rate = 22050)
-openhh = audiocore.RawSample(metalwave(10000, 0.9997, 45, 87, 353, 452, 493, 0.8), channel_count = 1, sample_rate = 22050)
-snare1 = audiocore.RawSample(noisewave(5000, 0.9993, 0), channel_count = 1, sample_rate = 22050)
-snare2 = audiocore.RawSample(noisewave(5000, 0.9992, 3), channel_count = 1, sample_rate = 22050)
-clap = audiocore.RawSample(noisewave(2500, 0.998, 4), channel_count = 1, sample_rate = 22050)
-hihat1 = audiocore.RawSample(metalwave(2500, 0.9985, 2, 3, 50, 7, 109, 1), channel_count = 1, sample_rate = 22050)
-hihat2 = audiocore.RawSample(metalwave(2500, 0.997, 9, 2, 5, 37, 3, 0.8), channel_count = 1, sample_rate = 22050)
+load_raw_to_buffer(f"kick1.raw", kick_buf)
+load_raw_to_buffer(f"snare1.raw", snare_buf)
+load_raw_to_buffer(f"clap1.raw", clap_buf)
+load_raw_to_buffer(f"hh1.raw", hh_buf)
+load_raw_to_buffer(f"ohh1.raw", ohh_buf)
 
-c1 = ( bass1, snare1, clap, openhh, hihat1 )
-c2 = ( bass2, snare1, clap, openhh, hihat1 )
-c3 = ( bass1, snare2, clap, openhh, hihat1 )
-c4 = ( bass2, snare2, clap, openhh, hihat1 )
-c5 = ( bass1, snare1, clap, openhh, hihat2 )
-c6 = ( bass2, snare1, clap, openhh, hihat2 )
-c7 = ( bass1, snare2, clap, openhh, hihat2 )
-c8 = ( bass2, snare2, clap, openhh, hihat2 )
+# Create RawSample objects pointing to our buffers
+sample_kick  = audiocore.RawSample(kick_buf,  channel_count = 1, sample_rate=22050)
+sample_snare = audiocore.RawSample(snare_buf, channel_count = 1, sample_rate=22050)
+sample_clap  = audiocore.RawSample(clap_buf,  channel_count = 1, sample_rate=22050)
+sample_hh    = audiocore.RawSample(hh_buf,    channel_count = 1, sample_rate=22050)
+sample_ohh   = audiocore.RawSample(ohh_buf,   channel_count = 1, sample_rate=22050)
 
-combo = ( c1, c2, c3, c4, c5, c6, c7, c8 )
+samples = (sample_kick, sample_snare, sample_clap, sample_hh, sample_ohh)
+
+current_kit_index = -1
+ro = -10
 
 while True:
-  reading = adc.value
-  select = reading & 57344;
-  if select == 32768:
-      drums = 1
-  elif select == 40960:
-      drums = 2
-  elif select == 49152:
-      drums = 3
-  elif select == 57344:
-      drums = 4
-      if reading > 61440:
-          drums = 5
-  else:
-      drums = 0
-      select = int(reading / 4096)
-  #swap = reading & 512
-  event = keys.events.get()
-  if event and event.pressed:
-      n = event.key_number
-#      if swap:
-#          if n == 2:
-#              drums, select = alternate(drums, select)
-#              n = 1
-#          elif n == 4:
-#              drums, select = alternate(drums, select)
-#              n = 0
-      if drums > 0:
-          wave = audiocore.WaveFile(open(wav_files[n] + str(drums) + ".wav", "rb"))
-      else:
-          wave = combo[select][n]
-      mixer.voice[n].play(wave)
+    # 1. Check Knob for Kit Selection
+    reading = adc.value
+    rotation = reading // 2048;
+    if abs(rotation - ro) > 1:
+      ro = rotation
+      select = reading // 4096 # 0 to 15
+      if select != current_kit_index:
+        current_kit_index = select
+        k, s, c, h, o = DRUM_KITS[select]
+        print(f"Loading Kit {select}: K{k} S{s} C{c} H{h} O{o}")
+
+        # Load the files into the buffers
+        load_raw_to_buffer(f"kick{k}.raw", kick_buf)
+        load_raw_to_buffer(f"snare{s}.raw", snare_buf)
+        load_raw_to_buffer(f"clap{c}.raw", clap_buf)
+        load_raw_to_buffer(f"hh{h}.raw", hh_buf)
+        load_raw_to_buffer(f"ohh{o}.raw", ohh_buf)
+
+    # 2. Key Handling
+    is_accented = keys[4].value
+
+    for i in range(5):
+      current_state = keys[i].value
+      # Detect the "Rising Edge" (Transition from False to True)
+      if current_state and not last_states[i]:
+        if i == 4:
+          for j, key in enumerate(keys):
+            if j == 4: continue
+            if key.value:
+              mixer.voice[j].level = 1.0
+              if j == 3 and not last_states[4]:
+                last_states[4] = current_state
+                wave = samples[4]
+                mixer.voice[3].play(wave)
+          continue
+        # Trigger your drum sound here
+        wave = samples[i]
+        velocity = 1.0 if is_accented else 0.5
+        if i == 3: # Hi-Hat logic
+          if is_accented:
+            wave = samples[4]
+        mixer.voice[i].level = velocity
+        mixer.voice[i].play(wave)
+      # Update the memory for the next loop iteration
+      last_states[i] = current_state
