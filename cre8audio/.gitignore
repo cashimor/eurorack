@@ -1,0 +1,17 @@
+build/
+vendor-input/
+logs/
+.venv/
+__pycache__/
+*.pyc
+*.dfu
+*.bin
+*.elf
+*.exe
+*.dll
+*.zip
+*.pdf
+*.app/
+.DS_Store
+__MACOSX/
+*.asm.txt
