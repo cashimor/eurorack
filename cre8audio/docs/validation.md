@@ -20,19 +20,24 @@ hardware trial, not a compatibility claim for every Cellz revision or wiring set
 
 The original source-only public builder reproduced the exact installed P1 image hash. The
 packaged tool refused to proceed when no unique device was connected during the
-publication check. Its write paths use the tested host protocol but remain a
-portable refactoring that has not itself performed a live update.
+initial publication check. The packaged updater subsequently installed P2 and P3
+on the same spare: all 25 RAM staging blocks were read back for each update,
+checksums `f790` and `e204` were accepted, and fresh `HARMONY2` and `HARMONY3`
+application reports were confirmed. P2's live musical trial prompted the shared
+cycle-boundary change. P3's musical behavior still awaits user verification.
 Do not treat successful enumeration as proof of recoverability or flash contents.
 
-Harmony P2 is an offline-tested candidate, not yet installed on hardware. Its
+Harmony P3 has also passed offline tests. Its
 compiled ARM tests exercise three-tap startup, averaging, irregular taps, debounce,
 hold/release boundaries, independent and simultaneous buttons, 1:8 and inverse
 ratios, 120/35 BPM snapping, counter wraparound, fractional periods and stalled
 loop handling. Integration checks preserve the P1 musical/ADC/external-clock
 behavior, verify the patched SysTick vector and original countdowns, check new RAM
-boundaries, and run the whole P2 image through the real loader in emulation.
+boundaries, and run the whole P3 image through the real loader in emulation.
+Regression cases check shared cycles regardless of button order, retapping just
+after a step, continued taps exactly on clock edges, and stopping on a due edge.
 Software-pended EXTI dispatch is modeled; actual interrupt timing and physical
-left/right button mapping still need a hardware trial.
+left/right button mapping still need further hardware verification.
 
 ## Development emulation
 
@@ -67,7 +72,7 @@ Ubuntu with Python 3.11 and 3.12.
 ## Scope
 
 Only the inspected legacy revision `001b`, known migration installer, official
-Cellz V0.0.3.0 file and locally built Harmony P1/P2 are supported. Chipz/NiftyCASE
+Cellz V0.0.3.0 file and locally built Harmony P1/P2/P3 are supported. Chipz/NiftyCASE
 and other migration versions are deliberately outside the public updater's scope.
 No tool reads back the complete flash, establishes debug access, changes drivers,
 performs automatic rollback, or guarantees recovery from a failed bootloader write.

@@ -175,7 +175,7 @@ class Tests(unittest.TestCase):
                      'checksum':f'{plan.checksum:04x}'}
             command = [sys.executable,str(ROOT/'tools/cellz_update.py'),'flash',
                        '--firmware',str(path),'--manifest',str(manifest)]
-            for signature in ('HARMONY1','HARMONY2','UNKNOWN!'):
+            for signature in ('HARMONY1','HARMONY2','HARMONY3','UNKNOWN!'):
                 build['application_signature'] = signature
                 manifest.write_text(json.dumps(build))
                 result = subprocess.run(command,capture_output=True,text=True)

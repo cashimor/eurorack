@@ -1,5 +1,5 @@
 /* Maarten Hofman (cashimor) is not responsible for damage, loss, or malfunction of Cre8audio gear or other equipment resulting from use of this project. Use it at your own risk. */
-/* Cellz Harmony prototype 2. Freestanding Cortex-M3 application extension.
+/* Cellz Harmony prototype 3. Freestanding Cortex-M3 application extension.
  * Integration addresses are specific to the pinned official V0.0.3.0 image.
  * No heap allocation, floating point, persistent writes, or bootloader changes.
  */
@@ -145,7 +145,7 @@ void harmony_boot(void) {
     /* Signature in otherwise unused application status bytes; preserve the
      * vendor's report fields and base version for its USB mode-switch handler.
      */
-    static const uint8_t signature[8] = {'H','A','R','M','O','N','Y','2'};
+    static const uint8_t signature[8] = {'H','A','R','M','O','N','Y','3'};
     for (uint32_t i = 0; i < 8; ++i) REG8(0x20000134u + i) = signature[i];
     ((void (*)(int,int))0x080061d9u)(0, 1); /* Existing selected-pad indicator. */
 }

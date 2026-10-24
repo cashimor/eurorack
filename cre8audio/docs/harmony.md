@@ -1,4 +1,4 @@
-# Cellz Harmony prototype 2
+# Cellz Harmony prototype 3
 
 **Maarten Hofman (cashimor) is not responsible for damage, loss, or malfunction of
 Cre8audio gear or other equipment resulting from use of this project. Use it at
@@ -11,7 +11,7 @@ This is not a recovered full source tree for the manufacturer's application.
 
 ## Controls
 
-| Control | Prototype 2 behavior |
+| Control | Prototype 3 behavior |
 | --- | --- |
 | First original ADC/pot channel | Select one of 14 shared harmonic settings |
 | Second original ADC/pot channel | Select one of 16 paired layouts |
@@ -60,8 +60,12 @@ retained until the control moves farther across the boundary.
 
 Both directions start stopped at power-on. Tap a Tune button at least three times
 at a steady tempo and release it after each tap. The third release starts that
-direction with an immediate step. Additional taps refine its tempo using the most
-recent four intervals and realign that direction. A gap longer than four seconds
+direction's clock; its first step follows one complete period later. Additional
+taps refine its tempo using the most recent four intervals. Every accepted tempo
+setting resets both running clocks to one shared cycle boundary. It adds no
+immediate tap-triggered step and keeps the current pad selected. Steps already
+due from the old schedule are preserved once, so tapping exactly on each beat
+does not stall the sequence. A gap longer than four seconds
 starts a new three-tap measurement; a running clock continues during measurement.
 Intervals that differ by more than 25% restart confirmation rather than accepting
 an abrupt inconsistent estimate.
@@ -74,7 +78,7 @@ very short external gate pulses across the switches may not register as taps.
 The first running direction establishes a tempo. When the other direction is set,
 its requested step duration snaps to the nearest permitted ratio of the running
 direction: **1:1; 1:2 through 1:8 and their inverses; 2:3, 3:2, 3:4, 4:3**.
-The established clock keeps its tempo and phase. At 120 BPM, tapping the other
+The established clock keeps its tempo; both phases restart together. At 120 BPM, tapping the other
 button at 40 or 30 BPM yields those tempos; about 35 BPM snaps to 40 BPM. A
 120/15 BPM pair is also allowed (8:1). Awkward ratios such as 24:7 are excluded.
 
@@ -89,7 +93,7 @@ movement, pitch, indicator and gate paths. External clock inputs remain active
 and add steps; disconnect those clocks for a pure tap-tempo pattern. Stopping a
 tap clock does not disable external clocking or touch-pad selection. Clock settings
 are temporary and are not written to flash. Physical button/direction mapping and
-timing under USB load still need a P2 hardware trial.
+timing under USB load still need further hardware verification.
 
 ## Build locally; no complete firmware is distributed
 
@@ -116,9 +120,9 @@ extension and `build.json`. The manifest records source/image/container hashes,
 checksum, symbols and exact integration patches. Locally generated original-byte
 patch records also stay in that ignored directory.
 
-The P2 candidate has image SHA-256
-`bd0edd3c023ed5246932313f7e6da51981bae1566330b95a41cb571cc1688502`,
-checksum `f790`, and 25 transmitted 1 KB blocks. The extension itself is 1710 bytes.
+The P3 candidate has image SHA-256
+`c08a6e5d9ac5ca1081709d0f60c270dc69548eb2fbed9971867ea7506f0052e6`,
+checksum `e204`, and 25 transmitted 1 KB blocks. The extension itself is 1748 bytes.
 It changes 18 bytes at six integration sites and adds two application pages.
 The SysTick vector now points to a wrapper that preserves the original countdowns
 and maintains clock time. Tap state uses a separate 256-byte RAM region above the
@@ -136,20 +140,24 @@ Prepare the Windows environment and HID loader as described in
 [the updater guide](windows-updater.md). First review the offline plan:
 
 ```powershell
-python tools/cellz_update.py flash --firmware build/harmony/Cellz_Harmony_P2.UNTESTED.dfu --manifest build/harmony/build.json
+python tools/cellz_update.py flash --firmware build/harmony/Cellz_Harmony_P3.UNTESTED.dfu --manifest build/harmony/build.json
 ```
 
 Add `--execute` to install. The updater verifies the manifest, RAM staging data,
 commit acknowledgments and whole-image checksum before starting the application.
-It then requires the `HARMONY2` signature. The base USB version remains `0030`;
+It then requires the `HARMONY3` signature. The base USB version remains `0030`;
 the signature distinguishes Harmony from the original application.
 
 The `UNTESTED` artifact filename is retained to emphasize that a local rebuild is
 experimental and has not itself undergone a hardware trial. P1 was installed on
-one modified spare and reported to work excellently; P2 is not yet hardware-tested.
+one modified spare and reported to work excellently. P2's live trial prompted the
+shared-cycle improvement. P3 was installed on that spare with all staging blocks
+verified, checksum accepted and its application signature confirmed; its musical
+behavior still awaits user verification.
 Try pad selection, both stepping directions, both outputs and the two knobs. Check
 long power-off/restart behavior when your hardware setup can safely be power-cycled.
-For P2, also check each button/direction, hold-to-stop, restarting, simultaneous
-buttons, both 1:4 and 1:8 ratios, and operation alongside external clocks.
+For P3, also check each button/direction, hold-to-stop, restarting, simultaneous
+buttons, both 1:4 and 1:8 ratios, tempo changes near step boundaries, continued
+tapping on each beat, and operation alongside external clocks.
 Restore the separately downloaded official file using the normal flash command
 if needed. Neither update nor restore has an automatic rollback or flash backup.

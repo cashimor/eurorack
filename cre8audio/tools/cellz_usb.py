@@ -250,4 +250,4 @@ class Cellz:
             return True
         identity = self.wait(ready)
         return {'identity': identity, 'hid_status': self.application_report.hex(' '),
-                'harmony': self.application_report[16:24] in (b'HARMONY1', b'HARMONY2')}
+                'harmony': self.application_report[16:24] in (b'HARMONY1', b'HARMONY2', b'HARMONY3')}

@@ -60,7 +60,7 @@ class Scenarios:
         self.assertEqual(h.tap(100), 0)
         self.assertEqual(h.tap(600), 0)
         self.assertEqual(h.period(0), 0)
-        self.assertEqual(h.tap(1100) & 1, 1)
+        self.assertEqual(h.tap(1100), 0)
         self.assertEqual(h.period(0), 500000)
         h.tap(1620)
         self.assertEqual(h.period(0), 506667)
@@ -103,7 +103,7 @@ class Scenarios:
         h = self.harness()
         for when in (100, 600, 1100):
             result = h.tap(when, 3)
-        self.assertEqual(result, 3)
+        self.assertEqual(result, 0)
         self.assertEqual((h.period(0), h.period(1)), (500000, 500000))
         h.update(2000, 3)
         h.update(2025)
@@ -176,6 +176,51 @@ class Scenarios:
         self.assertEqual(h.update(start+20000) & 2, 0)
         self.assertEqual(h.update(start+31999) & 2, 0)
         self.assertEqual(h.update(start+32000) & 2, 2)
+
+    def test_setting_either_direction_aligns_both_running_cycles(self):
+        for selected in (0, 1):
+            h = self.harness()
+            h.train(selected ^ 1, 500)
+            h.train(selected, 2000, start=2000)
+            start = h.now
+            fast, slow = 1 << (selected ^ 1), 1 << selected
+            self.assertEqual(h.period(selected), 2000000)
+            self.assertEqual(h.update(start + 499), 0)
+            self.assertEqual(h.update(start + 500), fast)
+            self.assertEqual(h.update(start + 1000), fast)
+            self.assertEqual(h.update(start + 1500), fast)
+            self.assertEqual(h.update(start + 1999), 0)
+            self.assertEqual(h.update(start + 2000), fast | slow)
+
+    def test_confirmed_retap_near_a_clock_edge_has_no_extra_step(self):
+        h = self.harness()
+        h.train(0, 500)
+        # Last scheduled edge at 1675; the next accepted release arrives at
+        # 1695, only 20 ms later. It must reset time without another jump.
+        self.assertEqual(h.update(1620, 1), 0)
+        self.assertEqual(h.update(1645), 0)
+        self.assertEqual(h.update(1670, 0), 0)
+        self.assertEqual(h.update(1675), 1)
+        self.assertEqual(h.update(1695), 0)
+        self.assertEqual(h.period(0), 506667)
+        self.assertEqual(h.update(1695), 0)
+        self.assertEqual(h.update(2201), 0)
+        self.assertEqual(h.update(2202), 1)
+
+    def test_tapping_on_each_due_edge_keeps_playing_without_duplicate_steps(self):
+        h = self.harness()
+        h.train(0, 500)
+        for at in (1600,2100,2600,3100):
+            self.assertEqual(h.tap(at), 1)
+            self.assertEqual(h.update(h.now), 0)
+
+    def test_a_hold_stop_suppresses_an_edge_due_on_the_same_update(self):
+        h = self.harness()
+        h.train(0, 500)
+        h.update(1375,1)
+        h.update(1400)
+        self.assertEqual(h.update(2175),0)
+        self.assertEqual(h.period(0),0)
 
 
 @unittest.skipUnless(COMPILER and sys.platform != 'win32', 'Native C tests use a Unix C compiler')

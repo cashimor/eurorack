@@ -76,13 +76,26 @@ static uint32_t tap(TapTempo *state, uint32_t channel, uint32_t when) {
     for (uint32_t j = 0; j < v->count; ++j) sum += v->intervals[j];
     uint32_t requested = (sum * 1000u + v->count/2u) / v->count;
     v->period_us = harmony_tempo_snap(requested, state->voice[channel ^ 1u].period_us);
-    v->phase_us = 0;
     return 1u << channel;
 }
 
 uint32_t harmony_tempo_update(TapTempo *state, uint32_t now, uint32_t buttons) {
     uint32_t elapsed = now - state->last_ms, due = 0, retapped = 0;
     state->last_ms = now;
+    /* Account for genuine old-clock edges before applying any tap changes.
+     * Otherwise a tap exactly on each edge could continually cancel playback. */
+    for (uint32_t i = 0; i < 2; ++i) {
+        TapVoice *v = &state->voice[i];
+        if (!v->period_us) continue;
+        /* Fractional milliseconds accumulate; stalls never produce a burst. */
+        if (elapsed > MAX_PERIOD_US/1000u) { v->phase_us = 0; due |= 1u << i; }
+        else {
+            v->phase_us += elapsed * 1000u;
+            if (v->phase_us >= v->period_us) {
+                v->phase_us %= v->period_us; due |= 1u << i;
+            }
+        }
+    }
     for (uint32_t i = 0; i < 2; ++i) {
         TapVoice *v = &state->voice[i];
         uint32_t raw = (buttons >> i) & 1u;
@@ -93,23 +106,23 @@ uint32_t harmony_tempo_update(TapTempo *state, uint32_t now, uint32_t buttons) {
             else if (!v->held && v->changed_ms - v->pressed_ms < HOLD_MS) {
                 /* Commit on release: a held button never supplies a tap. */
                 uint32_t accepted = tap(state, i, v->pressed_ms);
-                retapped |= accepted; due |= accepted;
+                retapped |= accepted;
             }
         }
         if (v->down && raw && !v->held && now - v->pressed_ms >= HOLD_MS) {
             v->period_us = v->phase_us = 0;
             v->taps = v->count = v->cursor = 0; v->held = 1;
         }
-        if (!v->period_us || (retapped & (1u << i))) continue;
-        /* Keep fractional milliseconds in the accumulator. Long main-loop
-         * stalls produce at most one step, never a burst of catch-up notes. */
-        if (elapsed > MAX_PERIOD_US/1000u) { v->phase_us = 0; due |= 1u << i; }
-        else {
-            v->phase_us += elapsed * 1000u;
-            if (v->phase_us >= v->period_us) {
-                v->phase_us %= v->period_us; due |= 1u << i;
-            }
-        }
+    }
+    if (retapped) {
+        /* A confirmed tempo starts one shared cycle for all running voices.
+         * Do not synthesize a step here: the old clock may just have stepped.
+         * Each voice waits one complete period from this common boundary.
+         * Already-due old-clock edges above are preserved, never duplicated. */
+        for (uint32_t i = 0; i < 2; ++i) state->voice[i].phase_us = 0;
+    }
+    for (uint32_t i = 0; i < 2; ++i) {
+        if (!state->voice[i].period_us) due &= ~(1u << i);
     }
     return due;
 }
