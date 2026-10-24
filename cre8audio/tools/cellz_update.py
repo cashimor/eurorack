@@ -37,8 +37,8 @@ def main():
     signature = None
     if args.command == 'flash' and args.manifest:
         signature = json.loads(args.manifest.read_text()).get('application_signature', 'HARMONY1')
-        if signature not in ('HARMONY1', 'HARMONY2', 'HARMONY3', 'HARMONY4', 'HARMONY5'):
-            raise ValueError('Unsupported Harmony application signature')
+        if signature not in ('HARMONY1', 'HARMONY2', 'HARMONY3', 'HARMONY4', 'HARMONY5', 'DRUM0001'):
+            raise ValueError('Unsupported custom application signature')
         signature = signature.encode('ascii')
     summary = {'command':args.command,'source_sha256':plan.source_sha256,'blocks':len(plan.blocks)}
     if args.command == 'flash':

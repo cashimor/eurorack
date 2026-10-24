@@ -6,7 +6,7 @@ Windows Cellz transports. No driver changes, firmware files, or USB writes on im
 import hashlib
 import os
 import time
-from hid_protocol import packet
+from hid_protocol import packet, drum_status
 from windows_hid import Native, WindowsHid
 
 # Fingerprint of the inspected 49-byte HID descriptor, not a bundled vendor blob.
@@ -163,7 +163,10 @@ class Cellz:
     def inspect(self):
         result = {'identity': self.identity}
         try:
-            result['hid_status'] = self.report().hex(' ')
+            report = self.report()
+            result['hid_status'] = report.hex(' ')
+            if report[16:24] == b'DRUM0001':
+                result['drum'] = drum_status(report)
         except (OSError,NotImplementedError,ValueError,RuntimeError) as exc:
             result['hid_status_error'] = str(exc)
             device = self._one()
@@ -250,4 +253,5 @@ class Cellz:
             return True
         identity = self.wait(ready)
         return {'identity': identity, 'hid_status': self.application_report.hex(' '),
-                'harmony': self.application_report[16:24] in (b'HARMONY1', b'HARMONY2', b'HARMONY3', b'HARMONY4', b'HARMONY5')}
+                'harmony': self.application_report[16:24] in (b'HARMONY1', b'HARMONY2', b'HARMONY3', b'HARMONY4', b'HARMONY5'),
+                'drum': drum_status(self.application_report)}

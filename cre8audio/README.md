@@ -1,4 +1,4 @@
-# Independent Cre8audio Cellz tools and Harmony firmware
+# Independent Cre8audio Cellz tools and firmware
 
 **Maarten Hofman (cashimor) is not responsible for damage, loss, or malfunction of
 Cre8audio gear or other equipment resulting from use of this project. Use it at
@@ -31,10 +31,18 @@ variation-zero progressions start there and follow the downwards clock paths.
 P5 has also been installed with staging, checksum and startup verification;
 physical confirmation of the corrected top position is pending.
 
+**Drum D1** is a separate, unflashed candidate with four 16-step instruments,
+two pattern banks, tempo/swing knobs, external clock takeover and gate-controlled
+bank inversion. Holding both buttons saves all eight patterns to a two-page flash
+journal. Host and compiled ARM simulations cover timing, editing and interrupted
+saves; electrical behavior and power-cycle restoration await a hardware trial.
+See the [Drum manual](docs/drum.md) for the controls and current limits.
+
 ## Start here
 
 - [Windows updater and bootloader migration](docs/windows-updater.md)
 - [Harmony controls, building and installation](docs/harmony.md)
+- [Separate Drum D1 sequencer: controls, pattern saving and building](docs/drum.md)
 - [Validation and supported scope](docs/validation.md)
 - [Responsibility and redistribution notice](NOTICE.md)
 
@@ -47,7 +55,7 @@ or retry uncertain writes automatically.
 ## What is included
 
 - `tools/`: our Python updater, protocol implementation, container handling and
-  Harmony builder. Python 3.11+; live USB support targets Windows.
+  separate Harmony and Drum builders. Python 3.11+; live USB support targets Windows.
 - `firmware/`: our C extension and linker script, integrated into a separately
   supplied official V0.0.3.0 application at build time.
 - `tests/`: synthetic host/protocol tests that need no hardware or vendor files.
@@ -55,7 +63,7 @@ or retry uncertain writes automatically.
 **No Cre8audio firmware, updater binaries, extracted code, disassembly, manuals,
 logos, or other vendor assets are included.** Obtain the official package yourself
 from [Cre8audio's firmware page](https://www.cre8audio.com/firmware-and-software).
-Generated Harmony DFU files contain vendor application code and must remain local;
+Generated DFU files contain vendor application code and must remain local;
 they are deliberately excluded from this repository.
 
 Our source and documentation in this directory are under the [MIT license](LICENSE).
