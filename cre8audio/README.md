@@ -22,8 +22,10 @@ and simple tempo ratios through 1:8. Accepted tempo settings align both running
 clocks to a shared cycle without adding an immediate tap-triggered step. P2 and
 P3 have been installed with startup signatures verified; P3's musical behavior
 still awaits user verification.
-P4 adds the progression bank and has passed offline ARM tests for all 432 maps;
-it has not been installed on hardware yet.
+P4 adds the progression bank and has passed offline ARM tests for all 432 maps.
+It has been installed on the same spare with all 26 staging blocks verified,
+checksum accepted and a fresh HARMONY4 signature confirmed. Musical verification
+of the progression bank and harmony-change reset is still pending.
 
 ## Start here
 

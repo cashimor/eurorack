@@ -205,7 +205,9 @@ one modified spare and reported to work excellently. P2's live trial prompted th
 shared-cycle improvement. P3 was installed on that spare with all staging blocks
 verified, checksum accepted and its application signature confirmed; its musical
 behavior still awaits user verification.
-P4 has passed offline tests but has not been installed on hardware.
+P4 has passed offline tests and was installed on the same spare: all 26 staging
+blocks were verified, checksum `2784` accepted, and a fresh `HARMONY4` status
+confirmed. Progression behavior and the harmony-change reset await user verification.
 Try pad selection, both stepping directions, both outputs and the two knobs. Check
 long power-off/restart behavior when your hardware setup can safely be power-cycled.
 For P4, also check the midpoint between banks, all 13 progressions, melody changes

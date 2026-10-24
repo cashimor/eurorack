@@ -39,7 +39,10 @@ after a step, continued taps exactly on clock edges, and stopping on a due edge.
 Software-pended EXTI dispatch is modeled; actual interrupt timing and physical
 left/right button mapping still need further hardware verification.
 
-P4 is not yet installed on hardware. Its compiled ARM suite checks all 432 maps
+P4 was installed on the same spare using the packaged updater. All 26 staging
+blocks were read back, checksum `2784` accepted, and a fresh `HARMONY4` application
+report confirmed. Its progression behavior and harmony-change reset still await
+user verification. Its compiled ARM suite checks all 432 maps
 (14 scales and 13 progressions, with 16 variations each), distinct note pairs,
 per-chord major/minor membership, all seven melody degrees across variations,
 root/third/fifth/octave chord groups, and equal half-range control banks with midpoint
