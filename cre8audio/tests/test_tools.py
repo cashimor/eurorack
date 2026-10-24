@@ -165,6 +165,28 @@ class Tests(unittest.TestCase):
                                     capture_output=True,text=True,check=True)
             self.assertIn('Maarten Hofman (cashimor) is not responsible',result.stdout)
 
+    def test_custom_signature_is_reviewed_offline_and_rejects_unknown_versions(self):
+        data, plan = fixture()
+        with tempfile.TemporaryDirectory() as directory:
+            path, manifest = Path(directory)/'test.dfu', Path(directory)/'build.json'
+            path.write_bytes(data)
+            build = {'source_sha256':OFFICIAL_CELLZ,'dfu_sha256':plan.source_sha256,
+                     'image_sha256':hashlib.sha256(plan.image).hexdigest(),
+                     'checksum':f'{plan.checksum:04x}'}
+            command = [sys.executable,str(ROOT/'tools/cellz_update.py'),'flash',
+                       '--firmware',str(path),'--manifest',str(manifest)]
+            for signature in ('HARMONY1','HARMONY2','HARMONY3','HARMONY4','HARMONY5','UNKNOWN!'):
+                build['application_signature'] = signature
+                manifest.write_text(json.dumps(build))
+                result = subprocess.run(command,capture_output=True,text=True)
+                if signature == 'UNKNOWN!':
+                    self.assertNotEqual(result.returncode,0)
+                    self.assertIn('Unsupported Harmony application signature',result.stderr)
+                else:
+                    self.assertEqual(result.returncode,0,result.stderr)
+                    self.assertIn(signature,result.stdout)
+                    self.assertIn('Offline plan only; no USB access',result.stdout)
+
     def test_short_and_long_report_api_lengths(self):
         self.assertEqual(len(api_buffer(packet(2,count=11))),1088)
         self.assertEqual(len(api_buffer(packet(3,count=11,payload=b'\0'*1024))),1088)

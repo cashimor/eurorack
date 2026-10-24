@@ -5,15 +5,31 @@ Cre8audio gear or other equipment resulting from use of this project. Use it at
 your own risk. There is no warranty or manufacturer endorsement.**
 
 This directory contains an independently written Windows updater and the source
-for **Cellz Harmony prototype 1**. The updater provides a Windows route through
+for **Cellz Harmony prototype 5**. The updater provides a Windows route through
 the old bootloader migration, followed by normal HID application updates, without
 requiring a Macintosh. This is an experimental, version-specific workflow.
 
 Harmony turns the two pots into a shared harmony selector and a note-layout
 selector. Both voices get deterministic notes at startup; the upper voice uses a
-full scale and the lower voice uses chord tones. There are 14 harmonic settings,
-16 layouts each, and no duplicate complete note pair within a layout. The initial
-firmware was installed on one modified spare Cellz and reported to work excellently.
+full scale and the lower voice uses chord tones. The first half of the harmony
+control selects 14 scale settings; the other half selects 13 four-chord
+progressions. There are 16 variations per setting, with no duplicate complete
+note pair within a map. Progression variations change melodic choices from each
+chord's full scale as well as pad placement. The initial
+P1 firmware was installed on one modified spare Cellz and reported to work excellently.
+P3 includes independent Tune-button tap clocks, three-tap startup, hold-to-stop,
+and simple tempo ratios through 1:8. Accepted tempo settings align both running
+clocks to a shared cycle without adding an immediate tap-triggered step. P2 and
+P3 have been installed with startup signatures verified; P3's musical behavior
+still awaits user verification.
+P4 adds the progression bank and has passed offline ARM tests for all 432 maps.
+It has been installed on the same spare with all 26 staging blocks verified,
+checksum accepted and a fresh HARMONY4 signature confirmed. Musical verification
+of the progression bank and harmony-change reset is still pending.
+P5 corrects the physical orientation: hardware pad 15 is the top, so resets and
+variation-zero progressions start there and follow the downwards clock paths.
+P5 has also been installed with staging, checksum and startup verification;
+physical confirmation of the corrected top position is pending.
 
 ## Start here
 

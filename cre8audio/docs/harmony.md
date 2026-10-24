@@ -1,4 +1,4 @@
-# Cellz Harmony prototype 1
+# Cellz Harmony prototype 5
 
 **Maarten Hofman (cashimor) is not responsible for damage, loss, or malfunction of
 Cre8audio gear or other equipment resulting from use of this project. Use it at
@@ -11,12 +11,13 @@ This is not a recovered full source tree for the manufacturer's application.
 
 ## Controls
 
-| Control | Prototype 1 behavior |
+| Control | Prototype 5 behavior |
 | --- | --- |
-| First original ADC/pot channel | Select one of 14 shared harmonic settings |
-| Second original ADC/pot channel | Select one of 16 paired layouts |
+| First original ADC/pot channel | First half: 14 scales; second half: 13 chord progressions |
+| Second original ADC/pot channel | Select one of 16 variations (placement and, in progression mode, melody choices) |
 | Touch pads and external stepping inputs | Original selection/stepping behavior |
-| Front-panel Tune buttons | Inactive; no editing or quantization-mode shortcut |
+| Left Tune button | Tap-clock the original left/row stepping direction |
+| Right Tune button | Tap-clock the original right/column stepping direction |
 | Multiple touched pads | Existing touch arpeggiation, fixed at 250 ms |
 
 The physical knob direction depends on the board/control wiring. The modified
@@ -25,11 +26,17 @@ controls across the Tune buttons. Firmware reads the original ADC channels;
 those CV modifications can therefore select harmony/layout too. They are not
 required to operate the knobs, but an unmodified unit has not been tested here.
 
-The upper voice uses a full scale, the lower voice its associated chord tones.
+In the scale bank, the upper voice uses a full scale, the lower voice its associated chord tones.
 The lower part repeats roots more often and occasionally uses thirds, fifths and,
 for seventh-chord settings, sevenths. Each voice spans 0..24 semitones relative to
 its reference, retaining the manufacturer's two-octave reference difference.
 Tune your oscillators to establish the desired root/key.
+
+Changing the harmony setting returns selection and its indicator to the physical
+top pad (hardware index 15) and updates both outputs to that pad's notes. Running internal clocks
+retain their tempos but begin a fresh shared cycle, giving the starting pad a
+full interval before automatic movement. Variation-only changes retain position.
+Touch selection and external clock inputs can still advance or select pads.
 
 No two pads share the entire pitch pair. Individual notes and pitch classes can
 repeat. Layouts are deterministic rotations/permutations of paired material,
@@ -55,7 +62,92 @@ retained until the control moves farther across the boundary.
 | Mixolydian | 0 2 4 5 7 9 10 | 0 4 7 |
 | Locrian | 0 1 3 5 6 8 10 | 0 3 6 |
 
-Tap-tempo clocks using the Tune buttons are a future idea, not part of prototype 1.
+## Progression bank
+
+The first 2048 decoded ADC counts select the 14 scales above; the remaining 2048
+select these 13 progressions, in order. The physical clockwise/counterclockwise
+direction depends on the original pot wiring. A 24-count hysteresis band applies
+to every selection boundary, including the midpoint between the two banks.
+
+| Progression | Chords with C as home tonic |
+| --- | --- |
+| I-V-vi-IV | C, G, Am, F |
+| ii-V-I-I | Dm, G, C, C |
+| I-I-IV-V | C, C, F, G |
+| I-vi-IV-V | C, Am, F, G |
+| vi-IV-I-V | Am, F, C, G |
+| I-vi-ii-V | C, Am, Dm, G |
+| IV-V-I-vi | F, G, C, Am |
+| I-III-IV-iv | C, E, F, Fm |
+| I-bVII-IV-I | C, Bb, F, C |
+| i-VII-VI-V | Cm, Bb, Ab, G |
+| i-iv-v-i | Cm, Fm, Gm, Cm |
+| i-VI-III-VII | Cm, Ab, Eb, Bb |
+| iv-III-bII-I | Fm, Eb, Db, C |
+
+Each progression assigns four consecutive groups of four pads in variation zero,
+starting at the physical top (hardware pad 15). Downwards steps subtract 1 or 4:
+15-14-13-12 plays the first chord's voicing, and 15-11-7-3 visits the four chords.
+P5 orients all generated maps from this top origin; the bottom pad is index 0.
+The lower voice plays root, third, fifth, octave for each chord. The four upper notes
+are selected from that chord's full major scale for uppercase chords, or full
+natural minor scale for lowercase chords. They are **not restricted to the triad**.
+Across the variations, all seven scale degrees are available for every chord.
+The four pads cannot contain all seven notes simultaneously; the variation
+control chooses which four and their octave placement.
+
+These are per-chord scales, rather than one fixed scale for the home key: with a
+C tonic, the G chord uses G major, including F#, and the Am chord uses A natural
+minor. Borrowed E major and F minor likewise get their own scales. Capitalization
+sets chord quality. III/VI/VII in the final four minor-home progressions use the
+natural minor degree positions; the final progression explicitly borrows bII and
+a major I. Tune both oscillators to establish the home tonic as before.
+
+In progression mode the variation knob changes both the melodic choices and the
+paired-pad permutation. Notes are folded into the original two-octave range;
+the lower part stays with the chord's triad and octave root. Duplicate note pairs are avoided
+even when a progression repeats a chord. A progression is a static pad map:
+touch selection and either clock direction travel through it; there is no
+separate automatic chord-change sequencer.
+
+## Tap clocks
+
+Both directions start stopped at power-on. Tap a Tune button at least three times
+at a steady tempo and release it after each tap. The third release starts that
+direction's clock; its first step follows one complete period later. Additional
+taps refine its tempo using the most recent four intervals. Every accepted tempo
+setting resets both running clocks to one shared cycle boundary. It adds no
+immediate tap-triggered step and keeps the current pad selected. Steps already
+due from the old schedule are preserved once, so tapping exactly on each beat
+does not stall the sequence. A gap longer than four seconds
+starts a new three-tap measurement; a running clock continues during measurement.
+Intervals that differ by more than 25% restart confirmation rather than accepting
+an abrupt inconsistent estimate.
+
+Hold a button for **800 ms** to stop its direction. Release it, then give three
+fresh taps to restart. Holding or tapping both buttons handles both independently;
+there is no combined-button quantization-mode gesture. Buttons are debounced;
+very short external gate pulses across the switches may not register as taps.
+
+The first running direction establishes a tempo. When the other direction is set,
+its requested step duration snaps to the nearest permitted ratio of the running
+direction: **1:1; 1:2 through 1:8 and their inverses; 2:3, 3:2, 3:4, 4:3**.
+The established clock keeps its tempo; both phases restart together. At 120 BPM, tapping the other
+button at 40 or 30 BPM yields those tempos; about 35 BPM snaps to 40 BPM. A
+120/15 BPM pair is also allowed (8:1). Awkward ratios such as 24:7 are excluded.
+
+Measured tap intervals are 150..4000 ms (400..15 BPM); ratio selection is subject
+to that tap range. Fractional
+milliseconds accumulate rather than rounding every period to a whole millisecond;
+ratio calculations have microsecond precision and steps use the existing 1 ms
+main loop. They are not a precision external clock synchronization system.
+
+Internal clocks pend the original clock interrupts, preserving their existing
+movement, pitch, indicator and gate paths. External clock inputs remain active
+and add steps; disconnect those clocks for a pure tap-tempo pattern. Stopping a
+tap clock does not disable external clocking or touch-pad selection. Clock settings
+are temporary and are not written to flash. Physical button/direction mapping and
+timing under USB load still need further hardware verification.
 
 ## Build locally; no complete firmware is distributed
 
@@ -74,17 +166,21 @@ python tools/build_harmony.py --base-firmware "vendor-input/NiftyBUNDLE Firmware
 
 If Zig 0.14.1 is on PATH, omit `--zig`. Python performs the container work and
 invokes Zig's freestanding ARM C compiler. It does not access USB. Sources are
-`firmware/cellz_harmony.c` and `firmware/harmony.ld`.
+`firmware/cellz_harmony.c`, `firmware/tap_tempo.c`, `firmware/tap_tempo.h` and
+`firmware/harmony.ld`.
 
 Outputs go to ignored `build/harmony/`: a full DFU, a contiguous binary, an ELF
 extension and `build.json`. The manifest records source/image/container hashes,
 checksum, symbols and exact integration patches. Locally generated original-byte
 patch records also stay in that ignored directory.
 
-The reproduced prototype has image SHA-256
-`a5c34bbd3aef8f65b33f28bbc40c425443590faf9ecd853da8f8ba380f4dc56a`,
-checksum `f6dd`, and 24 transmitted 1 KB blocks. The extension itself is 852 bytes.
-It changes 14 bytes at five integration sites and adds one application page.
+The P5 candidate has image SHA-256
+`4a5a6d9d4a1da536240efd38678f6de311a6751994148884595696914728c719`,
+checksum `1e15`, and 26 transmitted 1 KB blocks. The extension itself is 2420 bytes.
+It changes 18 bytes at six integration sites and adds three application pages.
+The SysTick vector now points to a wrapper that preserves the original countdowns
+and maintains clock time. Tap state uses a separate 256-byte RAM region above the
+pinned application's runtime/stack reservation; it does not reuse its USB buffers.
 The builder preserves the transport block at transmitted index 9 and does not
 include bootloader or factory metadata programming.
 
@@ -98,18 +194,32 @@ Prepare the Windows environment and HID loader as described in
 [the updater guide](windows-updater.md). First review the offline plan:
 
 ```powershell
-python tools/cellz_update.py flash --firmware build/harmony/Cellz_Harmony_P1.UNTESTED.dfu --manifest build/harmony/build.json
+python tools/cellz_update.py flash --firmware build/harmony/Cellz_Harmony_P5.UNTESTED.dfu --manifest build/harmony/build.json
 ```
 
 Add `--execute` to install. The updater verifies the manifest, RAM staging data,
 commit acknowledgments and whole-image checksum before starting the application.
-It then requires the `HARMONY1` signature. The base USB version remains `0030`;
+It then requires the `HARMONY5` signature. The base USB version remains `0030`;
 the signature distinguishes Harmony from the original application.
 
 The `UNTESTED` artifact filename is retained to emphasize that a local rebuild is
-experimental and has not itself undergone a hardware trial. The exact prototype
-image was installed on one modified spare and reported to work excellently.
+experimental and has not itself undergone a hardware trial. P1 was installed on
+one modified spare and reported to work excellently. P2's live trial prompted the
+shared-cycle improvement. P3 was installed on that spare with all staging blocks
+verified, checksum accepted and its application signature confirmed; its musical
+behavior still awaits user verification.
+P4 has passed offline tests and was installed on the same spare: all 26 staging
+blocks were verified, checksum `2784` accepted, and a fresh `HARMONY4` status
+confirmed. Progression behavior and the harmony-change reset await user verification.
+The user observed that P4 reset at the physical bottom. P5 corrects the reset
+and note-map orientation to hardware pad 15. It has been installed with all 26
+staging blocks verified, checksum `1e15` accepted and a fresh `HARMONY5` report;
+physical confirmation of the corrected orientation is pending.
 Try pad selection, both stepping directions, both outputs and the two knobs. Check
 long power-off/restart behavior when your hardware setup can safely be power-cycled.
+For P5, also check the physical top origin, midpoint between banks, all 13 progressions, melody changes
+with the variation control, each button/direction, hold-to-stop, restarting, simultaneous
+buttons, both 1:4 and 1:8 ratios, tempo changes near step boundaries, continued
+tapping on each beat, and operation alongside external clocks.
 Restore the separately downloaded official file using the normal flash command
 if needed. Neither update nor restore has an automatic rollback or flash backup.

@@ -94,7 +94,7 @@ the supported application is running, stages and reads back each block, commits
 once, checks checksum `3a9a`, and only then requests application return. It verifies
 the fresh application status, not just a possibly cached USB descriptor.
 
-The same command restores the official application from Harmony P1. It leaves the
+The same command restores the official application from Harmony. It leaves the
 new bootloader in place. Restoration has no promise of preserving programmed notes.
 
 ## Custom Harmony firmware
@@ -103,12 +103,13 @@ Follow [the local build instructions](harmony.md). Supply both the generated DFU
 and its generated manifest; add `--execute` only when ready to install:
 
 ```powershell
-python tools/cellz_update.py flash --firmware build/harmony/Cellz_Harmony_P1.UNTESTED.dfu --manifest build/harmony/build.json
+python tools/cellz_update.py flash --firmware build/harmony/Cellz_Harmony_P5.UNTESTED.dfu --manifest build/harmony/build.json
 ```
 
 The manifest ties the source fingerprint, full image hash and container hash
 together. Only use manifests from builds you trust. The updater also requires the
-`HARMONY1` application signature after starting this prototype.
+manifest's application signature after starting the prototype (`HARMONY5` for P5;
+`HARMONY1` through `HARMONY4` remain supported for existing manifests).
 
 Local journals go into ignored `logs/`. A failure stops without replaying commits
 or forcing a partially written application to start. Preserve the journal when

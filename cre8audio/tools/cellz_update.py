@@ -34,9 +34,17 @@ def main():
         return
     plan = (Plan.from_file(args.firmware,args.manifest) if args.command == 'flash'
             else LegacyPlan.official_migration(args.installer))
+    signature = None
+    if args.command == 'flash' and args.manifest:
+        signature = json.loads(args.manifest.read_text()).get('application_signature', 'HARMONY1')
+        if signature not in ('HARMONY1', 'HARMONY2', 'HARMONY3', 'HARMONY4', 'HARMONY5'):
+            raise ValueError('Unsupported Harmony application signature')
+        signature = signature.encode('ascii')
     summary = {'command':args.command,'source_sha256':plan.source_sha256,'blocks':len(plan.blocks)}
     if args.command == 'flash':
         summary['checksum'] = f'{plan.checksum:04x}'
+        if signature:
+            summary['application_signature'] = signature.decode('ascii')
     if not args.execute:
         print(json.dumps({'scope':'Offline plan only; no USB access',**summary},indent=2))
         return
@@ -75,7 +83,7 @@ def main():
                 engine.launch()
             finally:
                 transport.close()
-            event('application_returned',cellz.application(b'HARMONY1' if args.manifest else None))
+            event('application_returned',cellz.application(signature))
         journal['success'] = True
         event('complete')
     except Exception as exc:
