@@ -48,6 +48,9 @@ hook. Original playback and both external-clock paths are checked for every
 progression, and the whole P4 image passes the original loader's checksum and
 flash-mapping logic in emulation. The P3 clock synchronization regressions also
 pass with the P4 image.
+Harmony-change regressions also check every starting pad against every setting,
+the first-pad pitch outputs and indicator, retained tempos with reset phases,
+absence of an immediate internal step, and variation-only position preservation.
 
 ## Development emulation
 

@@ -199,6 +199,19 @@ static void apply(uint32_t setting, uint32_t layout) {
     }
     REG8(0x200006c8u) = 1; /* Quantized playback is always active. */
     uint32_t selected = REG8(0x200006e6u);
+    if (STATE->ready != 0xa5 || STATE->harmony != setting) {
+        /* Start every newly selected harmony at the first grid pad. Variation
+         * changes alone retain position. Keep clock tempos, but establish a
+         * fresh shared cycle so an almost-due step cannot skip the start. */
+        if (selected < 16) ((void (*)(int,int))0x080061d9u)(selected, 0);
+        REG8(0x200006e6u) = 0;
+        REG8(0x200006e7u) = 0;
+        selected = 0;
+        CLOCK->tempo.voice[0].phase_us = 0;
+        CLOCK->tempo.voice[1].phase_us = 0;
+        CLOCK->tempo.last_ms = CLOCK->milliseconds;
+        ((void (*)(int,int))0x080061d9u)(0, 1);
+    }
     if (selected >= 16) selected = 0;
     REG32(0x40007408u) = dac_codes[0][lower[selected]];
     REG32(0x40007414u) = dac_codes[1][upper[selected]];

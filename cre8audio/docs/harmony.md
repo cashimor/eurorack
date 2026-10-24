@@ -32,6 +32,12 @@ for seventh-chord settings, sevenths. Each voice spans 0..24 semitones relative 
 its reference, retaining the manufacturer's two-octave reference difference.
 Tune your oscillators to establish the desired root/key.
 
+Changing the harmony setting returns selection and its indicator to the first
+grid pad and updates both outputs to that pad's notes. Running internal clocks
+retain their tempos but begin a fresh shared cycle, giving the starting pad a
+full interval before automatic movement. Variation-only changes retain position.
+Touch selection and external clock inputs can still advance or select pads.
+
 No two pads share the entire pitch pair. Individual notes and pitch classes can
 repeat. Layouts are deterministic rotations/permutations of paired material,
 not random notes. Each startup regenerates a useful map independently of old
@@ -166,8 +172,8 @@ checksum, symbols and exact integration patches. Locally generated original-byte
 patch records also stay in that ignored directory.
 
 The P4 candidate has image SHA-256
-`5744bf8e3e9f35366ae0950b540484e783e2a359d54ac86826772da7c03bd8ca`,
-checksum `539a`, and 26 transmitted 1 KB blocks. The extension itself is 2332 bytes.
+`e350fea4ba4c95161e5c06423e842b0573545f113ce251dc70423945cc43b380`,
+checksum `2784`, and 26 transmitted 1 KB blocks. The extension itself is 2404 bytes.
 It changes 18 bytes at six integration sites and adds three application pages.
 The SysTick vector now points to a wrapper that preserves the original countdowns
 and maintains clock time. Tap state uses a separate 256-byte RAM region above the
