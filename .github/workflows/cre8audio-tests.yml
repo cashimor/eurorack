@@ -1,0 +1,23 @@
+name: Cre8audio source tests
+on:
+  push:
+    paths: ['cre8audio/**', '.github/workflows/cre8audio-tests.yml']
+  pull_request:
+    paths: ['cre8audio/**', '.github/workflows/cre8audio-tests.yml']
+permissions:
+  contents: read
+jobs:
+  source-tests:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.11', '3.12']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Test without hardware or vendor files
+        working-directory: cre8audio
+        run: python -m unittest discover -s tests -v
