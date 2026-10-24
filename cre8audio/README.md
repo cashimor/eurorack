@@ -31,11 +31,13 @@ variation-zero progressions start there and follow the downwards clock paths.
 P5 has also been installed with staging, checksum and startup verification;
 physical confirmation of the corrected top position is pending.
 
-**Drum D1** is a separate, unflashed candidate with four 16-step instruments,
+**Drum D1** is a separate experimental application with four 16-step instruments,
 two pattern banks, tempo/swing knobs, external clock takeover and gate-controlled
 bank inversion. Holding both buttons saves all eight patterns to a two-page flash
 journal. Host and compiled ARM simulations cover timing, editing and interrupted
-saves; electrical behavior and power-cycle restoration await a hardware trial.
+saves. D1 was installed on the same spare with all 27 staging blocks verified,
+checksum `c503` accepted and a fresh `DRUM0001` status confirmed. Electrical
+behavior and saved-pattern power-cycle restoration await hardware verification.
 See the [Drum manual](docs/drum.md) for the controls and current limits.
 
 ## Start here

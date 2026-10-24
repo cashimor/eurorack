@@ -6,9 +6,12 @@ your own risk. There is no warranty or manufacturer endorsement.**
 
 D1 is a separate experimental drum sequencer application. It preserves the
 Harmony source and builder; installing either application replaces the running
-application. D1 has passed host and compiled ARM simulation tests, but has not
-been installed or tested electrically on a Cellz. LED brightness/ghosting, touch
-behavior while scanning, trigger timing and output voltages need a hardware trial.
+application. D1 has passed host and compiled ARM simulation tests and was
+installed on one modified spare Cellz on 2026-10-24. All 27 staging blocks were
+verified, checksum `c503` was accepted, and a fresh USB read confirmed `DRUM0001`
+with the sequencer advancing. LED brightness/ghosting, touch behavior while
+scanning, trigger timing, output voltages and saved-pattern power-cycle restoration
+still need hardware verification.
 It does not generate audio: connect its four pulse outputs to drum trigger inputs.
 
 ## Controls
