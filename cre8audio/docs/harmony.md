@@ -1,4 +1,4 @@
-# Cellz Harmony prototype 3
+# Cellz Harmony prototype 4
 
 **Maarten Hofman (cashimor) is not responsible for damage, loss, or malfunction of
 Cre8audio gear or other equipment resulting from use of this project. Use it at
@@ -11,10 +11,10 @@ This is not a recovered full source tree for the manufacturer's application.
 
 ## Controls
 
-| Control | Prototype 3 behavior |
+| Control | Prototype 4 behavior |
 | --- | --- |
-| First original ADC/pot channel | Select one of 14 shared harmonic settings |
-| Second original ADC/pot channel | Select one of 16 paired layouts |
+| First original ADC/pot channel | First half: 14 scales; second half: 13 chord progressions |
+| Second original ADC/pot channel | Select one of 16 variations (placement and, in progression mode, melody choices) |
 | Touch pads and external stepping inputs | Original selection/stepping behavior |
 | Left Tune button | Tap-clock the original left/row stepping direction |
 | Right Tune button | Tap-clock the original right/column stepping direction |
@@ -26,7 +26,7 @@ controls across the Tune buttons. Firmware reads the original ADC channels;
 those CV modifications can therefore select harmony/layout too. They are not
 required to operate the knobs, but an unmodified unit has not been tested here.
 
-The upper voice uses a full scale, the lower voice its associated chord tones.
+In the scale bank, the upper voice uses a full scale, the lower voice its associated chord tones.
 The lower part repeats roots more often and occasionally uses thirds, fifths and,
 for seventh-chord settings, sevenths. Each voice spans 0..24 semitones relative to
 its reference, retaining the manufacturer's two-octave reference difference.
@@ -55,6 +55,51 @@ retained until the control moves farther across the boundary.
 | Lydian | 0 2 4 6 7 9 11 | 0 4 7 |
 | Mixolydian | 0 2 4 5 7 9 10 | 0 4 7 |
 | Locrian | 0 1 3 5 6 8 10 | 0 3 6 |
+
+## Progression bank
+
+The first 2048 decoded ADC counts select the 14 scales above; the remaining 2048
+select these 13 progressions, in order. The physical clockwise/counterclockwise
+direction depends on the original pot wiring. A 24-count hysteresis band applies
+to every selection boundary, including the midpoint between the two banks.
+
+| Progression | Chords with C as home tonic |
+| --- | --- |
+| I-V-vi-IV | C, G, Am, F |
+| ii-V-I-I | Dm, G, C, C |
+| I-I-IV-V | C, C, F, G |
+| I-vi-IV-V | C, Am, F, G |
+| vi-IV-I-V | Am, F, C, G |
+| I-vi-ii-V | C, Am, Dm, G |
+| IV-V-I-vi | F, G, C, Am |
+| I-III-IV-iv | C, E, F, Fm |
+| I-bVII-IV-I | C, Bb, F, C |
+| i-VII-VI-V | Cm, Bb, Ab, G |
+| i-iv-v-i | Cm, Fm, Gm, Cm |
+| i-VI-III-VII | Cm, Ab, Eb, Bb |
+| iv-III-bII-I | Fm, Eb, Db, C |
+
+Each progression assigns four consecutive groups of four pads in variation zero.
+The lower voice plays root, third, fifth, octave for each chord. The four upper notes
+are selected from that chord's full major scale for uppercase chords, or full
+natural minor scale for lowercase chords. They are **not restricted to the triad**.
+Across the variations, all seven scale degrees are available for every chord.
+The four pads cannot contain all seven notes simultaneously; the variation
+control chooses which four and their octave placement.
+
+These are per-chord scales, rather than one fixed scale for the home key: with a
+C tonic, the G chord uses G major, including F#, and the Am chord uses A natural
+minor. Borrowed E major and F minor likewise get their own scales. Capitalization
+sets chord quality. III/VI/VII in the final four minor-home progressions use the
+natural minor degree positions; the final progression explicitly borrows bII and
+a major I. Tune both oscillators to establish the home tonic as before.
+
+In progression mode the variation knob changes both the melodic choices and the
+paired-pad permutation. Notes are folded into the original two-octave range;
+the lower part stays with the chord's triad and octave root. Duplicate note pairs are avoided
+even when a progression repeats a chord. A progression is a static pad map:
+touch selection and either clock direction travel through it; there is no
+separate automatic chord-change sequencer.
 
 ## Tap clocks
 
@@ -120,10 +165,10 @@ extension and `build.json`. The manifest records source/image/container hashes,
 checksum, symbols and exact integration patches. Locally generated original-byte
 patch records also stay in that ignored directory.
 
-The P3 candidate has image SHA-256
-`c08a6e5d9ac5ca1081709d0f60c270dc69548eb2fbed9971867ea7506f0052e6`,
-checksum `e204`, and 25 transmitted 1 KB blocks. The extension itself is 1748 bytes.
-It changes 18 bytes at six integration sites and adds two application pages.
+The P4 candidate has image SHA-256
+`5744bf8e3e9f35366ae0950b540484e783e2a359d54ac86826772da7c03bd8ca`,
+checksum `539a`, and 26 transmitted 1 KB blocks. The extension itself is 2332 bytes.
+It changes 18 bytes at six integration sites and adds three application pages.
 The SysTick vector now points to a wrapper that preserves the original countdowns
 and maintains clock time. Tap state uses a separate 256-byte RAM region above the
 pinned application's runtime/stack reservation; it does not reuse its USB buffers.
@@ -140,12 +185,12 @@ Prepare the Windows environment and HID loader as described in
 [the updater guide](windows-updater.md). First review the offline plan:
 
 ```powershell
-python tools/cellz_update.py flash --firmware build/harmony/Cellz_Harmony_P3.UNTESTED.dfu --manifest build/harmony/build.json
+python tools/cellz_update.py flash --firmware build/harmony/Cellz_Harmony_P4.UNTESTED.dfu --manifest build/harmony/build.json
 ```
 
 Add `--execute` to install. The updater verifies the manifest, RAM staging data,
 commit acknowledgments and whole-image checksum before starting the application.
-It then requires the `HARMONY3` signature. The base USB version remains `0030`;
+It then requires the `HARMONY4` signature. The base USB version remains `0030`;
 the signature distinguishes Harmony from the original application.
 
 The `UNTESTED` artifact filename is retained to emphasize that a local rebuild is
@@ -154,9 +199,11 @@ one modified spare and reported to work excellently. P2's live trial prompted th
 shared-cycle improvement. P3 was installed on that spare with all staging blocks
 verified, checksum accepted and its application signature confirmed; its musical
 behavior still awaits user verification.
+P4 has passed offline tests but has not been installed on hardware.
 Try pad selection, both stepping directions, both outputs and the two knobs. Check
 long power-off/restart behavior when your hardware setup can safely be power-cycled.
-For P3, also check each button/direction, hold-to-stop, restarting, simultaneous
+For P4, also check the midpoint between banks, all 13 progressions, melody changes
+with the variation control, each button/direction, hold-to-stop, restarting, simultaneous
 buttons, both 1:4 and 1:8 ratios, tempo changes near step boundaries, continued
 tapping on each beat, and operation alongside external clocks.
 Restore the separately downloaded official file using the normal flash command

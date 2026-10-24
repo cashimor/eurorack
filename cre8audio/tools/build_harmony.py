@@ -76,7 +76,7 @@ def repack_extended(source, image):
         if body.startswith(b'File1:'):
             body = f'File1:0/{sum(image) & 65535:04x}'.encode()
         elif body.startswith(b'Name:'):
-            body = b'Name:Cellz_Harmony_P3_UNTESTED'
+            body = b'Name:Cellz_Harmony_P4_UNTESTED'
         headers.append(body)
     rows = [wrapped[i:i+64].hex().upper().encode() for i in range(0, len(wrapped), 64)]
     return b'\r\n'.join(headers + rows) + b'\r\n'
@@ -135,8 +135,8 @@ def main():
     patch(0x0800303c, 4, struct.pack('<I', symbols['harmony_systick']),
           'Preserve original SysTick countdowns and add monotonic clock')
     image.extend(b'\xff' * (-len(image) % 1024))
-    binary = OUT / 'Cellz_Harmony_P3.UNTESTED.bin'
-    dfu = OUT / 'Cellz_Harmony_P3.UNTESTED.dfu'
+    binary = OUT / 'Cellz_Harmony_P4.UNTESTED.bin'
+    dfu = OUT / 'Cellz_Harmony_P4.UNTESTED.dfu'
     binary.write_bytes(image)
     dfu.write_bytes(repack_extended(source, bytes(image)))
     rebuilt = Firmware.read(dfu)
@@ -150,7 +150,7 @@ def main():
                 'extension_address': hex(EXTENSION), 'extension_bytes': len(payload),
                 'symbols': {k: hex(v) for k, v in symbols.items() if k.startswith('harmony_')},
                 'patches': patches, 'bootloader_modified': False,
-                'hardware_flashed': False, 'application_signature': 'HARMONY3',
+                'hardware_flashed': False, 'application_signature': 'HARMONY4',
                 'ram_state_ranges': [['0x2000026c', '0x20000270'], ['0x20001200', '0x20001300']],
                 'c_source_sha256': hashlib.sha256((ROOT / 'firmware/cellz_harmony.c').read_bytes()).hexdigest(),
                 'linker_source_sha256': hashlib.sha256((ROOT / 'firmware/harmony.ld').read_bytes()).hexdigest(),

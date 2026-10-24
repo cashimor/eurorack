@@ -1,5 +1,5 @@
 /* Maarten Hofman (cashimor) is not responsible for damage, loss, or malfunction of Cre8audio gear or other equipment resulting from use of this project. Use it at your own risk. */
-/* Cellz Harmony prototype 3. Freestanding Cortex-M3 application extension.
+/* Cellz Harmony prototype 4. Freestanding Cortex-M3 application extension.
  * Integration addresses are specific to the pinned official V0.0.3.0 image.
  * No heap allocation, floating point, persistent writes, or bootloader changes.
  */
@@ -7,6 +7,8 @@
 #include "tap_tempo.h"
 
 #define SCALE_COUNT 14u
+#define PROGRESSION_COUNT 13u
+#define SETTING_COUNT (SCALE_COUNT + PROGRESSION_COUNT)
 #define LAYOUT_COUNT 16u
 #define ADC_RANGE 4096u
 #define HYSTERESIS 24u
@@ -40,6 +42,25 @@ static const Harmony harmonies[SCALE_COUNT] = {
     {7, {0,1,3,5,6,8,10},3,6,0},   /* Locrian: diminished triad */
 };
 
+typedef struct { uint8_t root, minor; } Chord;
+/* Absolute semitone roots relative to the home tonic. Capitalization controls
+ * quality; the last four progressions use minor-key degree spellings. */
+static const Chord progressions[PROGRESSION_COUNT][4] = {
+    {{0,0},{7,0},{9,1},{5,0}},   /* I-V-vi-IV */
+    {{2,1},{7,0},{0,0},{0,0}},   /* ii-V-I-I */
+    {{0,0},{0,0},{5,0},{7,0}},   /* I-I-IV-V */
+    {{0,0},{9,1},{5,0},{7,0}},   /* I-vi-IV-V */
+    {{9,1},{5,0},{0,0},{7,0}},   /* vi-IV-I-V */
+    {{0,0},{9,1},{2,1},{7,0}},   /* I-vi-ii-V */
+    {{5,0},{7,0},{0,0},{9,1}},   /* IV-V-I-vi */
+    {{0,0},{4,0},{5,0},{5,1}},   /* I-III-IV-iv */
+    {{0,0},{10,0},{5,0},{0,0}},  /* I-bVII-IV-I */
+    {{0,1},{10,0},{8,0},{7,0}},  /* i-VII-VI-V */
+    {{0,1},{5,1},{7,1},{0,1}},   /* i-iv-v-i */
+    {{0,1},{8,0},{3,0},{10,0}},  /* i-VI-III-VII */
+    {{5,1},{3,0},{1,0},{0,0}},   /* iv-III-bII-I */
+};
+
 /* Read from the original pitch conversion in emulation, semitones 0..24.
  * These retain the vendor's output scaling and two-octave channel offset.
  */
@@ -58,18 +79,70 @@ typedef struct { uint8_t harmony, layout, ready, reserved; } State;
 #define LOWER ((volatile uint16_t *)0x200006fcu)
 #define UPPER ((volatile uint16_t *)0x2000071cu)
 
-uint32_t harmony_bin(uint32_t adc, uint32_t count, uint32_t previous) {
-    if (adc > 4095u) adc = 4095u;
-    uint32_t candidate = (adc * count) >> 12;
+static uint32_t select_bin(uint32_t adc, uint32_t count,
+                           uint32_t previous, uint32_t range) {
+    if (adc >= range) adc = range - 1u;
+    uint32_t candidate = (adc * count) / range;
     if (previous >= count) return candidate;
     if (candidate > previous) {
-        uint32_t edge = ((previous + 1u) * ADC_RANGE + count - 1u) / count;
+        uint32_t edge = ((previous + 1u) * range + count - 1u) / count;
         if (adc < edge + HYSTERESIS) return previous;
     } else if (candidate < previous) {
-        uint32_t edge = (previous * ADC_RANGE + count - 1u) / count;
+        uint32_t edge = (previous * range + count - 1u) / count;
         if (adc + HYSTERESIS >= edge) return previous;
     }
     return candidate;
+}
+
+uint32_t harmony_bin(uint32_t adc, uint32_t count, uint32_t previous) {
+    return select_bin(adc, count, previous, ADC_RANGE);
+}
+
+/* Give scales and progressions exactly half of the decoded control range.
+ * Hysteresis remains 24 actual ADC counts, including across the bank boundary. */
+uint32_t harmony_select(uint32_t adc, uint32_t previous) {
+    if (adc > 4095u) adc = 4095u;
+    uint32_t progression = adc >= 2048u;
+    if (previous < SCALE_COUNT && adc < 2048u + HYSTERESIS) progression = 0;
+    else if (previous >= SCALE_COUNT && previous < SETTING_COUNT &&
+             adc + HYSTERESIS >= 2048u) progression = 1;
+    if (!progression)
+        return select_bin(adc, SCALE_COUNT, previous < SCALE_COUNT ? previous : 255u, 2048u);
+    uint32_t relative = adc >= 2048u ? adc - 2048u : 0u;
+    uint32_t old = previous >= SCALE_COUNT && previous < SETTING_COUNT
+                   ? previous - SCALE_COUNT : 255u;
+    return SCALE_COUNT + select_bin(relative, PROGRESSION_COUNT, old, 2048u);
+}
+
+static void progression_generate(uint32_t setting, uint32_t layout,
+                                  uint16_t lower[16], uint16_t upper[16]) {
+    static const uint8_t strides[4] = {1,5,11,15};
+    uint16_t bass[16], melody[16];
+    for (uint32_t index = 0; index < 16; ++index) {
+        const Chord *chord = &progressions[setting][index >> 2];
+        const Harmony *scale = &harmonies[chord->minor ? 2 : 0];
+        /* Bass: root, third, fifth, octave in each group of four. Melody: four
+         * degrees drawn from the chord's full major/natural-minor scale.
+         * Layout changes the melodic choices as well as spatial placement. */
+        uint32_t position = index & 3u;
+        uint32_t interval = position == 0 ? 0u : position == 1 ? (chord->minor ? 3u : 4u)
+                                             : position == 2 ? 7u : 12u;
+        bass[index] = chord->root + interval;
+        uint32_t degree = (layout + (index >> 2) * 4u + (index & 3u) * 2u) % 14u;
+        for (uint32_t attempt = 0; attempt < 14; ++attempt) {
+            uint32_t note = (chord->root + scale->scale[degree % 7u]) % 12u
+                             + 12u * (degree / 7u);
+            uint32_t duplicate = 0;
+            for (uint32_t previous = 0; previous < index; ++previous)
+                if (bass[previous] == bass[index] && melody[previous] == note) duplicate = 1;
+            if (!duplicate) { melody[index] = (uint16_t)note; break; }
+            degree = (degree + 1u) % 14u;
+        }
+    }
+    for (uint32_t pad = 0; pad < 16; ++pad) {
+        uint32_t index = (pad * strides[layout >> 2] + 4u * (layout & 3u)) & 15u;
+        lower[pad] = bass[index]; upper[pad] = melody[index];
+    }
 }
 
 /* Generate semitone offsets, independent of hardware. 16 distinct pairs.
@@ -78,8 +151,12 @@ uint32_t harmony_bin(uint32_t adc, uint32_t count, uint32_t previous) {
 void harmony_generate(uint32_t setting, uint32_t layout,
                       uint16_t lower[16], uint16_t upper[16]) {
     static const uint8_t strides[4] = {1,5,11,15};
-    if (setting >= SCALE_COUNT) setting = 0;
+    if (setting >= SETTING_COUNT) setting = 0;
     layout &= 15u;
+    if (setting >= SCALE_COUNT) {
+        progression_generate(setting - SCALE_COUNT, layout, lower, upper);
+        return;
+    }
     const Harmony *h = &harmonies[setting];
     uint32_t pool = 2u * h->size + 1u;
     for (uint32_t pad = 0; pad < 16; ++pad) {
@@ -145,14 +222,14 @@ void harmony_boot(void) {
     /* Signature in otherwise unused application status bytes; preserve the
      * vendor's report fields and base version for its USB mode-switch handler.
      */
-    static const uint8_t signature[8] = {'H','A','R','M','O','N','Y','3'};
+    static const uint8_t signature[8] = {'H','A','R','M','O','N','Y','4'};
     for (uint32_t i = 0; i < 8; ++i) REG8(0x20000134u + i) = signature[i];
     ((void (*)(int,int))0x080061d9u)(0, 1); /* Existing selected-pad indicator. */
 }
 
 void harmony_tick(void) {
-    uint32_t setting = harmony_bin(REG16(0x200002b4u), SCALE_COUNT,
-                                   STATE->ready == 0xa5 ? STATE->harmony : 255u);
+    uint32_t setting = harmony_select(REG16(0x200002b4u),
+                                      STATE->ready == 0xa5 ? STATE->harmony : 255u);
     uint32_t layout = harmony_bin(REG16(0x200002b6u), LAYOUT_COUNT,
                                   STATE->ready == 0xa5 ? STATE->layout : 255u);
     if (STATE->ready != 0xa5 || setting != STATE->harmony || layout != STATE->layout)

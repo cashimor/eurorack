@@ -39,6 +39,16 @@ after a step, continued taps exactly on clock edges, and stopping on a due edge.
 Software-pended EXTI dispatch is modeled; actual interrupt timing and physical
 left/right button mapping still need further hardware verification.
 
+P4 is not yet installed on hardware. Its compiled ARM suite checks all 432 maps
+(14 scales and 13 progressions, with 16 variations each), distinct note pairs,
+per-chord major/minor membership, all seven melody degrees across variations,
+root/third/fifth/octave chord groups, and equal half-range control banks with midpoint
+hysteresis. All 27 settings and 16 variations are applied through the real loop
+hook. Original playback and both external-clock paths are checked for every
+progression, and the whole P4 image passes the original loader's checksum and
+flash-mapping logic in emulation. The P3 clock synchronization regressions also
+pass with the P4 image.
+
 ## Development emulation
 
 Private development tests executed the compiled ARM extension and original
@@ -72,7 +82,7 @@ Ubuntu with Python 3.11 and 3.12.
 ## Scope
 
 Only the inspected legacy revision `001b`, known migration installer, official
-Cellz V0.0.3.0 file and locally built Harmony P1/P2/P3 are supported. Chipz/NiftyCASE
+Cellz V0.0.3.0 file and locally built Harmony P1/P2/P3/P4 are supported. Chipz/NiftyCASE
 and other migration versions are deliberately outside the public updater's scope.
 No tool reads back the complete flash, establishes debug access, changes drivers,
 performs automatic rollback, or guarantees recovery from a failed bootloader write.

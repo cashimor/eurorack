@@ -103,13 +103,13 @@ Follow [the local build instructions](harmony.md). Supply both the generated DFU
 and its generated manifest; add `--execute` only when ready to install:
 
 ```powershell
-python tools/cellz_update.py flash --firmware build/harmony/Cellz_Harmony_P3.UNTESTED.dfu --manifest build/harmony/build.json
+python tools/cellz_update.py flash --firmware build/harmony/Cellz_Harmony_P4.UNTESTED.dfu --manifest build/harmony/build.json
 ```
 
 The manifest ties the source fingerprint, full image hash and container hash
 together. Only use manifests from builds you trust. The updater also requires the
-manifest's application signature after starting the prototype (`HARMONY3` for P3;
-`HARMONY1` and `HARMONY2` remain supported for existing manifests).
+manifest's application signature after starting the prototype (`HARMONY4` for P4;
+`HARMONY1`, `HARMONY2` and `HARMONY3` remain supported for existing manifests).
 
 Local journals go into ignored `logs/`. A failure stops without replaying commits
 or forcing a partially written application to start. Preserve the journal when
