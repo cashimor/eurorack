@@ -1,4 +1,4 @@
-# Cellz Harmony prototype 4
+# Cellz Harmony prototype 5
 
 **Maarten Hofman (cashimor) is not responsible for damage, loss, or malfunction of
 Cre8audio gear or other equipment resulting from use of this project. Use it at
@@ -11,7 +11,7 @@ This is not a recovered full source tree for the manufacturer's application.
 
 ## Controls
 
-| Control | Prototype 4 behavior |
+| Control | Prototype 5 behavior |
 | --- | --- |
 | First original ADC/pot channel | First half: 14 scales; second half: 13 chord progressions |
 | Second original ADC/pot channel | Select one of 16 variations (placement and, in progression mode, melody choices) |
@@ -32,8 +32,8 @@ for seventh-chord settings, sevenths. Each voice spans 0..24 semitones relative 
 its reference, retaining the manufacturer's two-octave reference difference.
 Tune your oscillators to establish the desired root/key.
 
-Changing the harmony setting returns selection and its indicator to the first
-grid pad and updates both outputs to that pad's notes. Running internal clocks
+Changing the harmony setting returns selection and its indicator to the physical
+top pad (hardware index 15) and updates both outputs to that pad's notes. Running internal clocks
 retain their tempos but begin a fresh shared cycle, giving the starting pad a
 full interval before automatic movement. Variation-only changes retain position.
 Touch selection and external clock inputs can still advance or select pads.
@@ -85,7 +85,10 @@ to every selection boundary, including the midpoint between the two banks.
 | i-VI-III-VII | Cm, Ab, Eb, Bb |
 | iv-III-bII-I | Fm, Eb, Db, C |
 
-Each progression assigns four consecutive groups of four pads in variation zero.
+Each progression assigns four consecutive groups of four pads in variation zero,
+starting at the physical top (hardware pad 15). Downwards steps subtract 1 or 4:
+15-14-13-12 plays the first chord's voicing, and 15-11-7-3 visits the four chords.
+P5 orients all generated maps from this top origin; the bottom pad is index 0.
 The lower voice plays root, third, fifth, octave for each chord. The four upper notes
 are selected from that chord's full major scale for uppercase chords, or full
 natural minor scale for lowercase chords. They are **not restricted to the triad**.
@@ -171,9 +174,9 @@ extension and `build.json`. The manifest records source/image/container hashes,
 checksum, symbols and exact integration patches. Locally generated original-byte
 patch records also stay in that ignored directory.
 
-The P4 candidate has image SHA-256
-`e350fea4ba4c95161e5c06423e842b0573545f113ce251dc70423945cc43b380`,
-checksum `2784`, and 26 transmitted 1 KB blocks. The extension itself is 2404 bytes.
+The P5 candidate has image SHA-256
+`4a5a6d9d4a1da536240efd38678f6de311a6751994148884595696914728c719`,
+checksum `1e15`, and 26 transmitted 1 KB blocks. The extension itself is 2420 bytes.
 It changes 18 bytes at six integration sites and adds three application pages.
 The SysTick vector now points to a wrapper that preserves the original countdowns
 and maintains clock time. Tap state uses a separate 256-byte RAM region above the
@@ -191,12 +194,12 @@ Prepare the Windows environment and HID loader as described in
 [the updater guide](windows-updater.md). First review the offline plan:
 
 ```powershell
-python tools/cellz_update.py flash --firmware build/harmony/Cellz_Harmony_P4.UNTESTED.dfu --manifest build/harmony/build.json
+python tools/cellz_update.py flash --firmware build/harmony/Cellz_Harmony_P5.UNTESTED.dfu --manifest build/harmony/build.json
 ```
 
 Add `--execute` to install. The updater verifies the manifest, RAM staging data,
 commit acknowledgments and whole-image checksum before starting the application.
-It then requires the `HARMONY4` signature. The base USB version remains `0030`;
+It then requires the `HARMONY5` signature. The base USB version remains `0030`;
 the signature distinguishes Harmony from the original application.
 
 The `UNTESTED` artifact filename is retained to emphasize that a local rebuild is
@@ -208,9 +211,13 @@ behavior still awaits user verification.
 P4 has passed offline tests and was installed on the same spare: all 26 staging
 blocks were verified, checksum `2784` accepted, and a fresh `HARMONY4` status
 confirmed. Progression behavior and the harmony-change reset await user verification.
+The user observed that P4 reset at the physical bottom. P5 corrects the reset
+and note-map orientation to hardware pad 15. It has been installed with all 26
+staging blocks verified, checksum `1e15` accepted and a fresh `HARMONY5` report;
+physical confirmation of the corrected orientation is pending.
 Try pad selection, both stepping directions, both outputs and the two knobs. Check
 long power-off/restart behavior when your hardware setup can safely be power-cycled.
-For P4, also check the midpoint between banks, all 13 progressions, melody changes
+For P5, also check the physical top origin, midpoint between banks, all 13 progressions, melody changes
 with the variation control, each button/direction, hold-to-stop, restarting, simultaneous
 buttons, both 1:4 and 1:8 ratios, tempo changes near step boundaries, continued
 tapping on each beat, and operation alongside external clocks.

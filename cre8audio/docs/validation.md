@@ -55,6 +55,14 @@ Harmony-change regressions also check every starting pad against every setting,
 the first-pad pitch outputs and indicator, retained tempos with reset phases,
 absence of an immediate internal step, and variation-only position preservation.
 
+P4's live trial revealed that hardware pad 0 is at the physical bottom. P5 uses
+pad 15 for startup and harmony resets, and orients the note maps so the first
+chord starts there in variation zero. Tests check the first voicing along
+15-14-13-12 and chord-root order along 15-11-7-3, alongside all map, reset and
+clock regressions. P5 was installed on the same spare with all 26 staging blocks
+verified, checksum `1e15` accepted and a fresh `HARMONY5` report confirmed.
+Physical confirmation of the corrected orientation is pending.
+
 ## Development emulation
 
 Private development tests executed the compiled ARM extension and original
@@ -88,7 +96,7 @@ Ubuntu with Python 3.11 and 3.12.
 ## Scope
 
 Only the inspected legacy revision `001b`, known migration installer, official
-Cellz V0.0.3.0 file and locally built Harmony P1/P2/P3/P4 are supported. Chipz/NiftyCASE
+Cellz V0.0.3.0 file and locally built Harmony P1 through P5 are supported. Chipz/NiftyCASE
 and other migration versions are deliberately outside the public updater's scope.
 No tool reads back the complete flash, establishes debug access, changes drivers,
 performs automatic rollback, or guarantees recovery from a failed bootloader write.

@@ -1,5 +1,5 @@
 /* Maarten Hofman (cashimor) is not responsible for damage, loss, or malfunction of Cre8audio gear or other equipment resulting from use of this project. Use it at your own risk. */
-/* Cellz Harmony prototype 4. Freestanding Cortex-M3 application extension.
+/* Cellz Harmony prototype 5. Freestanding Cortex-M3 application extension.
  * Integration addresses are specific to the pinned official V0.0.3.0 image.
  * No heap allocation, floating point, persistent writes, or bootloader changes.
  */
@@ -9,6 +9,7 @@
 #define SCALE_COUNT 14u
 #define PROGRESSION_COUNT 13u
 #define SETTING_COUNT (SCALE_COUNT + PROGRESSION_COUNT)
+#define GRID_START 15u /* Physical top; downward clock paths subtract 4 or 1. */
 #define LAYOUT_COUNT 16u
 #define ADC_RANGE 4096u
 #define HYSTERESIS 24u
@@ -140,7 +141,7 @@ static void progression_generate(uint32_t setting, uint32_t layout,
         }
     }
     for (uint32_t pad = 0; pad < 16; ++pad) {
-        uint32_t index = (pad * strides[layout >> 2] + 4u * (layout & 3u)) & 15u;
+        uint32_t index = ((GRID_START - pad) * strides[layout >> 2] + 4u * (layout & 3u)) & 15u;
         lower[pad] = bass[index]; upper[pad] = melody[index];
     }
 }
@@ -160,7 +161,7 @@ void harmony_generate(uint32_t setting, uint32_t layout,
     const Harmony *h = &harmonies[setting];
     uint32_t pool = 2u * h->size + 1u;
     for (uint32_t pad = 0; pad < 16; ++pad) {
-        uint32_t index = (pad * strides[layout >> 2] + 4u * (layout & 3u)) & 15u;
+        uint32_t index = ((GRID_START - pad) * strides[layout >> 2] + 4u * (layout & 3u)) & 15u;
         uint32_t degree = index % pool;
         upper[pad] = (uint16_t)(12u * (degree / h->size) + h->scale[degree % h->size]);
         if (index < 4) lower[pad] = 0;
@@ -200,19 +201,19 @@ static void apply(uint32_t setting, uint32_t layout) {
     REG8(0x200006c8u) = 1; /* Quantized playback is always active. */
     uint32_t selected = REG8(0x200006e6u);
     if (STATE->ready != 0xa5 || STATE->harmony != setting) {
-        /* Start every newly selected harmony at the first grid pad. Variation
+        /* Start every newly selected harmony at the physical top. Variation
          * changes alone retain position. Keep clock tempos, but establish a
          * fresh shared cycle so an almost-due step cannot skip the start. */
         if (selected < 16) ((void (*)(int,int))0x080061d9u)(selected, 0);
-        REG8(0x200006e6u) = 0;
-        REG8(0x200006e7u) = 0;
-        selected = 0;
+        REG8(0x200006e6u) = GRID_START;
+        REG8(0x200006e7u) = GRID_START;
+        selected = GRID_START;
         CLOCK->tempo.voice[0].phase_us = 0;
         CLOCK->tempo.voice[1].phase_us = 0;
         CLOCK->tempo.last_ms = CLOCK->milliseconds;
-        ((void (*)(int,int))0x080061d9u)(0, 1);
+        ((void (*)(int,int))0x080061d9u)(GRID_START, 1);
     }
-    if (selected >= 16) selected = 0;
+    if (selected >= 16) selected = GRID_START;
     REG32(0x40007408u) = dac_codes[0][lower[selected]];
     REG32(0x40007414u) = dac_codes[1][upper[selected]];
     STATE->harmony = (uint8_t)setting;
@@ -225,8 +226,8 @@ void harmony_boot(void) {
     CLOCK->milliseconds = 0;
     harmony_tempo_init(&CLOCK->tempo, 0);
     STATE->ready = 0;
-    REG8(0x200006e6u) = 0; /* Selected pad; ignore persisted position/notes. */
-    REG8(0x200006e7u) = 0;
+    REG8(0x200006e6u) = GRID_START; /* Ignore persisted position/notes. */
+    REG8(0x200006e7u) = GRID_START;
     REG16(0x200006e8u) = 250; /* Existing touch arpeggiator interval, milliseconds. */
     REG8(0x200006eau) = 0; /* No additional arpeggiator octave sweep. */
     REG8(0x20000277u) = 0; /* Original per-voice editing flags remain inactive. */
@@ -235,9 +236,9 @@ void harmony_boot(void) {
     /* Signature in otherwise unused application status bytes; preserve the
      * vendor's report fields and base version for its USB mode-switch handler.
      */
-    static const uint8_t signature[8] = {'H','A','R','M','O','N','Y','4'};
+    static const uint8_t signature[8] = {'H','A','R','M','O','N','Y','5'};
     for (uint32_t i = 0; i < 8; ++i) REG8(0x20000134u + i) = signature[i];
-    ((void (*)(int,int))0x080061d9u)(0, 1); /* Existing selected-pad indicator. */
+    ((void (*)(int,int))0x080061d9u)(GRID_START, 1); /* Existing indicator. */
 }
 
 void harmony_tick(void) {

@@ -5,7 +5,7 @@ Cre8audio gear or other equipment resulting from use of this project. Use it at
 your own risk. There is no warranty or manufacturer endorsement.**
 
 This directory contains an independently written Windows updater and the source
-for **Cellz Harmony prototype 4**. The updater provides a Windows route through
+for **Cellz Harmony prototype 5**. The updater provides a Windows route through
 the old bootloader migration, followed by normal HID application updates, without
 requiring a Macintosh. This is an experimental, version-specific workflow.
 
@@ -26,6 +26,10 @@ P4 adds the progression bank and has passed offline ARM tests for all 432 maps.
 It has been installed on the same spare with all 26 staging blocks verified,
 checksum accepted and a fresh HARMONY4 signature confirmed. Musical verification
 of the progression bank and harmony-change reset is still pending.
+P5 corrects the physical orientation: hardware pad 15 is the top, so resets and
+variation-zero progressions start there and follow the downwards clock paths.
+P5 has also been installed with staging, checksum and startup verification;
+physical confirmation of the corrected top position is pending.
 
 ## Start here
 
