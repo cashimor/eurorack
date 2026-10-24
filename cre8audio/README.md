@@ -5,7 +5,7 @@ Cre8audio gear or other equipment resulting from use of this project. Use it at
 your own risk. There is no warranty or manufacturer endorsement.**
 
 This directory contains an independently written Windows updater and the source
-for **Cellz Harmony prototype 1**. The updater provides a Windows route through
+for **Cellz Harmony prototype 2**. The updater provides a Windows route through
 the old bootloader migration, followed by normal HID application updates, without
 requiring a Macintosh. This is an experimental, version-specific workflow.
 
@@ -13,7 +13,10 @@ Harmony turns the two pots into a shared harmony selector and a note-layout
 selector. Both voices get deterministic notes at startup; the upper voice uses a
 full scale and the lower voice uses chord tones. There are 14 harmonic settings,
 16 layouts each, and no duplicate complete note pair within a layout. The initial
-firmware was installed on one modified spare Cellz and reported to work excellently.
+P1 firmware was installed on one modified spare Cellz and reported to work excellently.
+P2 adds independent Tune-button tap clocks, three-tap startup, hold-to-stop, and
+simple tempo ratios through 1:8. P2 has passed offline ARM integration tests;
+its tap controls still require a hardware trial.
 
 ## Start here
 

@@ -5,6 +5,7 @@ SECTIONS {
     .text : {
         KEEP(*(.text.harmony_boot))
         KEEP(*(.text.harmony_tick))
+        KEEP(*(.text.harmony_systick))
         *(.text*) *(.rodata*)
     } > FLASH
     .data : { *(.data*) } > FLASH

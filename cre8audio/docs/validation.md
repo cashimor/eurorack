@@ -18,11 +18,21 @@ before commits, the loader accepted checksum `f6dd`, and the restarted applicati
 returned `HARMONY1`. The owner reported that it worked excellently. This is one
 hardware trial, not a compatibility claim for every Cellz revision or wiring setup.
 
-The source-only public builder reproduced the exact installed image hash. The
+The original source-only public builder reproduced the exact installed P1 image hash. The
 packaged tool refused to proceed when no unique device was connected during the
 publication check. Its write paths use the tested host protocol but remain a
 portable refactoring that has not itself performed a live update.
 Do not treat successful enumeration as proof of recoverability or flash contents.
+
+Harmony P2 is an offline-tested candidate, not yet installed on hardware. Its
+compiled ARM tests exercise three-tap startup, averaging, irregular taps, debounce,
+hold/release boundaries, independent and simultaneous buttons, 1:8 and inverse
+ratios, 120/35 BPM snapping, counter wraparound, fractional periods and stalled
+loop handling. Integration checks preserve the P1 musical/ADC/external-clock
+behavior, verify the patched SysTick vector and original countdowns, check new RAM
+boundaries, and run the whole P2 image through the real loader in emulation.
+Software-pended EXTI dispatch is modeled; actual interrupt timing and physical
+left/right button mapping still need a hardware trial.
 
 ## Development emulation
 
@@ -49,14 +59,15 @@ Run `python -m unittest discover -s tests -v` from this directory. Fixtures are
 synthetic and contain no vendor code. Tests cover container round trips,
 manifest matching, packet framing, RAM verification, commit/error handling,
 source pinning and CLI help. Native C tests compile only our pure note generator
-and selector functions, checking all layouts and boundary noise. They run when a
+and selector functions plus the pure tap/clock engine, checking all layouts,
+boundary noise and clock scenarios. They run when a
 Unix C compiler is present and skip on Windows. A CI matrix covers Windows and
 Ubuntu with Python 3.11 and 3.12.
 
 ## Scope
 
 Only the inspected legacy revision `001b`, known migration installer, official
-Cellz V0.0.3.0 file and locally built Harmony P1 are supported. Chipz/NiftyCASE
+Cellz V0.0.3.0 file and locally built Harmony P1/P2 are supported. Chipz/NiftyCASE
 and other migration versions are deliberately outside the public updater's scope.
 No tool reads back the complete flash, establishes debug access, changes drivers,
 performs automatic rollback, or guarantees recovery from a failed bootloader write.

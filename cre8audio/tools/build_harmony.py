@@ -76,7 +76,7 @@ def repack_extended(source, image):
         if body.startswith(b'File1:'):
             body = f'File1:0/{sum(image) & 65535:04x}'.encode()
         elif body.startswith(b'Name:'):
-            body = b'Name:Cellz_Harmony_P1_UNTESTED'
+            body = b'Name:Cellz_Harmony_P2_UNTESTED'
         headers.append(body)
     rows = [wrapped[i:i+64].hex().upper().encode() for i in range(0, len(wrapped), 64)]
     return b'\r\n'.join(headers + rows) + b'\r\n'
@@ -108,7 +108,7 @@ def main():
                '-fno-stack-protector', '-ffunction-sections', '-fdata-sections',
                '-fno-unwind-tables', '-fno-asynchronous-unwind-tables', '-nostdlib',
                '-Wl,--gc-sections', '-Wl,-e,harmony_boot', '-Wl,-T,' + str(ROOT / 'firmware/harmony.ld'),
-               str(ROOT / 'firmware/cellz_harmony.c'), '-o', str(elf)]
+               str(ROOT / 'firmware/cellz_harmony.c'), str(ROOT / 'firmware/tap_tempo.c'), '-o', str(elf)]
     subprocess.run(command, env=env, cwd=ROOT, check=True)
     payload, symbols = elf_contents(elf)
     if not payload:
@@ -129,12 +129,14 @@ def main():
           branch_link(0x080076e2, symbols['harmony_boot']), 'Deterministic startup replaces stored-note restore')
     patch(0x08007820, 4,
           branch_link(0x08007820, symbols['harmony_tick']), 'Pots select shared harmony and paired layout')
-    patch(0x08006a28, 2, b'\x70\x47', 'Tune buttons inactive; prevents old edits and mode changes')
+    patch(0x08006a28, 2, b'\x70\x47', 'Disable old Tune editor; buttons now drive independent tap clocks')
     patch(0x08003ec6, 2, b'\x00\xbf', 'Disable old pot-to-arpeggio-tempo assignment')
     patch(0x08003ed6, 2, b'\x00\xbf', 'Disable old pot-to-extra-octaves assignment')
+    patch(0x0800303c, 4, struct.pack('<I', symbols['harmony_systick']),
+          'Preserve original SysTick countdowns and add monotonic clock')
     image.extend(b'\xff' * (-len(image) % 1024))
-    binary = OUT / 'Cellz_Harmony_P1.UNTESTED.bin'
-    dfu = OUT / 'Cellz_Harmony_P1.UNTESTED.dfu'
+    binary = OUT / 'Cellz_Harmony_P2.UNTESTED.bin'
+    dfu = OUT / 'Cellz_Harmony_P2.UNTESTED.dfu'
     binary.write_bytes(image)
     dfu.write_bytes(repack_extended(source, bytes(image)))
     rebuilt = Firmware.read(dfu)
@@ -148,9 +150,12 @@ def main():
                 'extension_address': hex(EXTENSION), 'extension_bytes': len(payload),
                 'symbols': {k: hex(v) for k, v in symbols.items() if k.startswith('harmony_')},
                 'patches': patches, 'bootloader_modified': False,
-                'hardware_flashed': False, 'application_signature': 'HARMONY1', 'ram_state_range': ['0x2000026c', '0x20000270'],
+                'hardware_flashed': False, 'application_signature': 'HARMONY2',
+                'ram_state_ranges': [['0x2000026c', '0x20000270'], ['0x20001200', '0x20001300']],
                 'c_source_sha256': hashlib.sha256((ROOT / 'firmware/cellz_harmony.c').read_bytes()).hexdigest(),
                 'linker_source_sha256': hashlib.sha256((ROOT / 'firmware/harmony.ld').read_bytes()).hexdigest(),
+                'tempo_source_sha256': hashlib.sha256((ROOT / 'firmware/tap_tempo.c').read_bytes()).hexdigest(),
+                'tempo_header_sha256': hashlib.sha256((ROOT / 'firmware/tap_tempo.h').read_bytes()).hexdigest(),
                 'compiler': 'Zig 0.14.1, official archive SHA256 554f5378228923ffd558eac35e21af020c73789d87afeabf4bfd16f2e6feed2c'}
     (OUT / 'build.json').write_text(json.dumps(manifest, indent=2) + '\n')
     print(json.dumps(manifest, indent=2))

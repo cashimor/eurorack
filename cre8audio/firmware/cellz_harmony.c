@@ -1,9 +1,10 @@
 /* Maarten Hofman (cashimor) is not responsible for damage, loss, or malfunction of Cre8audio gear or other equipment resulting from use of this project. Use it at your own risk. */
-/* Cellz Harmony prototype 1. Freestanding Cortex-M3 application extension.
+/* Cellz Harmony prototype 2. Freestanding Cortex-M3 application extension.
  * Integration addresses are specific to the pinned official V0.0.3.0 image.
- * No allocation, floating point, persistent writes, or bootloader changes.
+ * No heap allocation, floating point, persistent writes, or bootloader changes.
  */
 #include <stdint.h>
+#include "tap_tempo.h"
 
 #define SCALE_COUNT 14u
 #define LAYOUT_COUNT 16u
@@ -97,6 +98,18 @@ void harmony_generate(uint32_t setting, uint32_t layout,
 }
 
 #ifndef CELLZ_HOST_TEST
+/* The pinned runtime reserves RAM through 0x200011d8, including its downward
+ * growing stack. This extension owns the following 256-byte region instead;
+ * no vendor data, USB buffers or stack bytes are reused for tap state. */
+typedef struct { volatile uint32_t milliseconds; TapTempo tempo; } ClockState;
+#define CLOCK ((ClockState *)0x20001200u)
+_Static_assert(sizeof(ClockState) <= 256, "Clock state exceeds reserved RAM");
+
+void harmony_systick(void) {
+    ((void (*)(void))0x08006d9du)(); /* Preserve the original 1 ms countdowns. */
+    ++CLOCK->milliseconds;
+}
+
 static void apply(uint32_t setting, uint32_t layout) {
     uint16_t lower[16], upper[16];
     harmony_generate(setting, layout, lower, upper);
@@ -119,6 +132,8 @@ static void apply(uint32_t setting, uint32_t layout) {
 }
 
 void harmony_boot(void) {
+    CLOCK->milliseconds = 0;
+    harmony_tempo_init(&CLOCK->tempo, 0);
     STATE->ready = 0;
     REG8(0x200006e6u) = 0; /* Selected pad; ignore persisted position/notes. */
     REG8(0x200006e7u) = 0;
@@ -130,7 +145,7 @@ void harmony_boot(void) {
     /* Signature in otherwise unused application status bytes; preserve the
      * vendor's report fields and base version for its USB mode-switch handler.
      */
-    static const uint8_t signature[8] = {'H','A','R','M','O','N','Y','1'};
+    static const uint8_t signature[8] = {'H','A','R','M','O','N','Y','2'};
     for (uint32_t i = 0; i < 8; ++i) REG8(0x20000134u + i) = signature[i];
     ((void (*)(int,int))0x080061d9u)(0, 1); /* Existing selected-pad indicator. */
 }
@@ -142,5 +157,12 @@ void harmony_tick(void) {
                                   STATE->ready == 0xa5 ? STATE->layout : 255u);
     if (STATE->ready != 0xa5 || setting != STATE->harmony || layout != STATE->layout)
         apply(setting, layout);
+    uint32_t due = harmony_tempo_update(&CLOCK->tempo, CLOCK->milliseconds,
+                                         REG8(0x20000274u) & 3u);
+    /* Software-pend the existing clock interrupts. Their original handlers
+     * retain pad movement, pitch, LED and gate behavior. External clocks remain
+     * available; simultaneous internal directions pend both interrupts. */
+    uint32_t lines = ((due & 1u) ? 0x8000u : 0u) | ((due & 2u) ? 8u : 0u);
+    if (lines) REG32(0x40010410u) |= lines;
 }
 #endif /* CELLZ_HOST_TEST: native tests exercise only the pure scale functions. */

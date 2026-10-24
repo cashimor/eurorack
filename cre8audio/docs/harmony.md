@@ -1,4 +1,4 @@
-# Cellz Harmony prototype 1
+# Cellz Harmony prototype 2
 
 **Maarten Hofman (cashimor) is not responsible for damage, loss, or malfunction of
 Cre8audio gear or other equipment resulting from use of this project. Use it at
@@ -11,12 +11,13 @@ This is not a recovered full source tree for the manufacturer's application.
 
 ## Controls
 
-| Control | Prototype 1 behavior |
+| Control | Prototype 2 behavior |
 | --- | --- |
 | First original ADC/pot channel | Select one of 14 shared harmonic settings |
 | Second original ADC/pot channel | Select one of 16 paired layouts |
 | Touch pads and external stepping inputs | Original selection/stepping behavior |
-| Front-panel Tune buttons | Inactive; no editing or quantization-mode shortcut |
+| Left Tune button | Tap-clock the original left/row stepping direction |
+| Right Tune button | Tap-clock the original right/column stepping direction |
 | Multiple touched pads | Existing touch arpeggiation, fixed at 250 ms |
 
 The physical knob direction depends on the board/control wiring. The modified
@@ -55,7 +56,40 @@ retained until the control moves farther across the boundary.
 | Mixolydian | 0 2 4 5 7 9 10 | 0 4 7 |
 | Locrian | 0 1 3 5 6 8 10 | 0 3 6 |
 
-Tap-tempo clocks using the Tune buttons are a future idea, not part of prototype 1.
+## Tap clocks
+
+Both directions start stopped at power-on. Tap a Tune button at least three times
+at a steady tempo and release it after each tap. The third release starts that
+direction with an immediate step. Additional taps refine its tempo using the most
+recent four intervals and realign that direction. A gap longer than four seconds
+starts a new three-tap measurement; a running clock continues during measurement.
+Intervals that differ by more than 25% restart confirmation rather than accepting
+an abrupt inconsistent estimate.
+
+Hold a button for **800 ms** to stop its direction. Release it, then give three
+fresh taps to restart. Holding or tapping both buttons handles both independently;
+there is no combined-button quantization-mode gesture. Buttons are debounced;
+very short external gate pulses across the switches may not register as taps.
+
+The first running direction establishes a tempo. When the other direction is set,
+its requested step duration snaps to the nearest permitted ratio of the running
+direction: **1:1; 1:2 through 1:8 and their inverses; 2:3, 3:2, 3:4, 4:3**.
+The established clock keeps its tempo and phase. At 120 BPM, tapping the other
+button at 40 or 30 BPM yields those tempos; about 35 BPM snaps to 40 BPM. A
+120/15 BPM pair is also allowed (8:1). Awkward ratios such as 24:7 are excluded.
+
+Measured tap intervals are 150..4000 ms (400..15 BPM); ratio selection is subject
+to that tap range. Fractional
+milliseconds accumulate rather than rounding every period to a whole millisecond;
+ratio calculations have microsecond precision and steps use the existing 1 ms
+main loop. They are not a precision external clock synchronization system.
+
+Internal clocks pend the original clock interrupts, preserving their existing
+movement, pitch, indicator and gate paths. External clock inputs remain active
+and add steps; disconnect those clocks for a pure tap-tempo pattern. Stopping a
+tap clock does not disable external clocking or touch-pad selection. Clock settings
+are temporary and are not written to flash. Physical button/direction mapping and
+timing under USB load still need a P2 hardware trial.
 
 ## Build locally; no complete firmware is distributed
 
@@ -74,17 +108,21 @@ python tools/build_harmony.py --base-firmware "vendor-input/NiftyBUNDLE Firmware
 
 If Zig 0.14.1 is on PATH, omit `--zig`. Python performs the container work and
 invokes Zig's freestanding ARM C compiler. It does not access USB. Sources are
-`firmware/cellz_harmony.c` and `firmware/harmony.ld`.
+`firmware/cellz_harmony.c`, `firmware/tap_tempo.c`, `firmware/tap_tempo.h` and
+`firmware/harmony.ld`.
 
 Outputs go to ignored `build/harmony/`: a full DFU, a contiguous binary, an ELF
 extension and `build.json`. The manifest records source/image/container hashes,
 checksum, symbols and exact integration patches. Locally generated original-byte
 patch records also stay in that ignored directory.
 
-The reproduced prototype has image SHA-256
-`a5c34bbd3aef8f65b33f28bbc40c425443590faf9ecd853da8f8ba380f4dc56a`,
-checksum `f6dd`, and 24 transmitted 1 KB blocks. The extension itself is 852 bytes.
-It changes 14 bytes at five integration sites and adds one application page.
+The P2 candidate has image SHA-256
+`bd0edd3c023ed5246932313f7e6da51981bae1566330b95a41cb571cc1688502`,
+checksum `f790`, and 25 transmitted 1 KB blocks. The extension itself is 1710 bytes.
+It changes 18 bytes at six integration sites and adds two application pages.
+The SysTick vector now points to a wrapper that preserves the original countdowns
+and maintains clock time. Tap state uses a separate 256-byte RAM region above the
+pinned application's runtime/stack reservation; it does not reuse its USB buffers.
 The builder preserves the transport block at transmitted index 9 and does not
 include bootloader or factory metadata programming.
 
@@ -98,18 +136,20 @@ Prepare the Windows environment and HID loader as described in
 [the updater guide](windows-updater.md). First review the offline plan:
 
 ```powershell
-python tools/cellz_update.py flash --firmware build/harmony/Cellz_Harmony_P1.UNTESTED.dfu --manifest build/harmony/build.json
+python tools/cellz_update.py flash --firmware build/harmony/Cellz_Harmony_P2.UNTESTED.dfu --manifest build/harmony/build.json
 ```
 
 Add `--execute` to install. The updater verifies the manifest, RAM staging data,
 commit acknowledgments and whole-image checksum before starting the application.
-It then requires the `HARMONY1` signature. The base USB version remains `0030`;
+It then requires the `HARMONY2` signature. The base USB version remains `0030`;
 the signature distinguishes Harmony from the original application.
 
 The `UNTESTED` artifact filename is retained to emphasize that a local rebuild is
-experimental and has not itself undergone a hardware trial. The exact prototype
-image was installed on one modified spare and reported to work excellently.
+experimental and has not itself undergone a hardware trial. P1 was installed on
+one modified spare and reported to work excellently; P2 is not yet hardware-tested.
 Try pad selection, both stepping directions, both outputs and the two knobs. Check
 long power-off/restart behavior when your hardware setup can safely be power-cycled.
+For P2, also check each button/direction, hold-to-stop, restarting, simultaneous
+buttons, both 1:4 and 1:8 ratios, and operation alongside external clocks.
 Restore the separately downloaded official file using the normal flash command
 if needed. Neither update nor restore has an automatic rollback or flash backup.
