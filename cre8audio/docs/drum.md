@@ -14,8 +14,10 @@ verified, checksum accepted, and a fresh `DRUM0001` status. **D2 was installed
 on that spare on 2026-10-25:** all 28 staging blocks were verified, checksum `b6ef`
 was accepted, and a fresh USB read confirmed `DRUM0002` with playback advancing.
 D2 added Shift accents, triplet pairs and storage migration. D3 adds selectable
-16/32-step playback and four edit pages. **D3 has been built and tested offline;
-it has not been flashed.** Physical gesture direction, LED visibility, clock timing,
+16/32-step playback and four edit pages. **D3 was installed on that spare on
+2026-10-25:** all 29 staging blocks were verified, checksum `fcab` was accepted,
+and a fresh USB read confirmed `DRUM0003`, 16-step mode, page A1 and playback
+advancing. Physical gesture direction, LED visibility, clock timing,
 output voltages and power-off restoration need hardware verification.
 
 ## Controls

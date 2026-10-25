@@ -36,8 +36,11 @@ Hold the right button and move the swing knob up/down to choose 32/16; swing
 stays steady and uses pickup afterward. The right button cycles A1/A2/B1/B2 in
 32-step mode. Both banks retain all 32 steps, accents and triplets when using
 16 steps, and the shared length is saved too. D1/D2 saves load as 16-step patterns
-with blank second halves. D3 has passed offline tests and has not been flashed;
-D2 remains installed on the development spare. See the [Drum manual](docs/drum.md).
+with blank second halves. D3 has passed offline tests and was installed on the
+development spare on 2026-10-25, with all 29 staging blocks verified, checksum
+`fcab` accepted and a fresh `DRUM0003` status confirming playback. Physical
+controls and saved-pattern restoration still need user verification.
+See the [Drum manual](docs/drum.md).
 
 ## Start here
 

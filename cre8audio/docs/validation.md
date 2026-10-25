@@ -84,8 +84,10 @@ USB host/controller behavior, or power loss during a write.
 
 ## Drum D3 offline validation
 
-D3 was built offline on 2026-10-25; it has not been installed on hardware.
-The generated image reports `DRUM0003`. Its 28 KB normalized image plus the
+D3 was built and installed on the development spare on 2026-10-25. All 29 RAM
+staging blocks were verified before commits, checksum `fcab` was accepted, and
+a fresh USB read reported `DRUM0003`, 16-step mode, page A1 and playback advancing.
+Physical controls and saved-pattern restoration still need user verification. Its 28 KB normalized image plus the
 loader's extra erased page ends below the unchanged pattern journal at
 `0x0800e800`. The 29 transmitted blocks include the loader transport block.
 
@@ -119,7 +121,7 @@ Ubuntu with Python 3.11 and 3.12.
 
 Only the inspected legacy revision `001b`, known migration installer, official
 Cellz V0.0.3.0 file and locally built Harmony P1 through P5 and Drum D1 through D3 are supported
-by the application updater (D3 remains an offline-tested prototype). Chipz/NiftyCASE
+by the application updater (D3 has startup verification on one spare). Chipz/NiftyCASE
 and other migration versions are deliberately outside the public updater's scope.
 No tool reads back the complete flash, establishes debug access, changes drivers,
 performs automatic rollback, or guarantees recovery from a failed bootloader write.
