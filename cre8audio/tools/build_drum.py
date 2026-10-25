@@ -1,7 +1,7 @@
 """Maarten Hofman (cashimor) is not responsible for damage, loss, or malfunction
 of Cre8audio gear or other equipment resulting from use. Use at your own risk.
 
-Offline build of separate Cellz Drum D1. Obtain official firmware and Zig separately.
+Offline build of separate Cellz Drum D2. Obtain official firmware and Zig separately.
 """
 import argparse
 import hashlib
@@ -69,22 +69,24 @@ def main():
     for line in source.lines[:source.first_data_line]:
         body=line.rstrip(b'\r\n')
         if body.startswith(b'File1:'): body=f'File1:0/{sum(image)&65535:04x}'.encode()
-        elif body.startswith(b'Name:'): body=b'Name:Cellz_Drum_D1_UNTESTED'
+        elif body.startswith(b'Name:'): body=b'Name:Cellz_Drum_D2_UNTESTED'
         headers.append(body)
     rows=[wrapped[i:i+64].hex().upper().encode() for i in range(0,len(wrapped),64)]
-    dfu=out/'Cellz_Drum_D1.UNTESTED.dfu'
+    dfu=out/'Cellz_Drum_D2.UNTESTED.dfu'
     dfu.write_bytes(b'\r\n'.join(headers+rows)+b'\r\n')
-    (out/'Cellz_Drum_D1.UNTESTED.bin').write_bytes(image)
+    (out/'Cellz_Drum_D2.UNTESTED.bin').write_bytes(image)
     rebuilt=Firmware.read(dfu)
     if rebuilt.image!=image or rebuilt.checksum!=rebuilt.expected_checksum:
         raise ValueError('Repacked image does not validate')
-    manifest={'status':'Experimental separate Drum D1; see docs/drum.md',
+    manifest={'status':'Experimental separate Drum D2; see docs/drum.md',
         'source_sha256':SOURCE_SHA,'image_sha256':hashlib.sha256(image).hexdigest(),
         'dfu_sha256':hashlib.sha256(dfu.read_bytes()).hexdigest(),
         'checksum':f'{rebuilt.checksum:04x}','bytes':len(image),'transmitted_blocks':len(wrapped)//1024,
-        'application_signature':'DRUM0001','bootloader_modified':False,'hardware_flashed':False,
+        'application_signature':'DRUM0002','bootloader_modified':False,'hardware_flashed':False,
         'extension_bytes':len(extension),'symbols':{k:hex(v) for k,v in symbols.items() if k.startswith('drum_')},
         'patches':patches,'pattern_pages':['0x0800e800','0x0800ec00'],
+        'pattern_format':2,'loads_pattern_formats':[1,2],
+        'cv_codes':{'low':0,'normal':1352,'accent':2048},
         'factory_settings_region_untouched':['0x0800f000','0x08010000'],
         'ram_state_range':['0x20001200','0x20001600'],
         'source_files':{name:hashlib.sha256((ROOT/'firmware'/name).read_bytes()).hexdigest()

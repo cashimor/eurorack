@@ -19,3 +19,7 @@ class DrumStatusTests(unittest.TestCase):
     def test_invalid_drum_status_is_rejected(self):
         r=self.report(); r[24]=4
         with self.assertRaises(ValueError): drum_status(r)
+
+    def test_d2_uses_the_same_readonly_status_layout(self):
+        r=self.report();r[16:24]=b'DRUM0002'
+        self.assertEqual(drum_status(r)['instrument'],4)

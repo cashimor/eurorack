@@ -8,6 +8,8 @@ typedef struct {
     int (*erase)(void *,uint32_t);
     int (*program)(void *,uint32_t,uint32_t,uint32_t);
 } DrumStoreIO;
+/* data contains 24 uint16_t words: eight steps, eight accents, eight triplets.
+ * Load accepts D1 (zero-fills the new masks) and D2; save writes D2 only. */
 int drum_store_load(const uint8_t *a,const uint8_t *b,uint16_t *patterns,uint32_t *sequence);
 int drum_store_save(const uint8_t *a,const uint8_t *b,const uint16_t *patterns,const DrumStoreIO *io);
 #endif

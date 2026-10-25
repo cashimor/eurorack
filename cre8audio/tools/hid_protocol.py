@@ -4,8 +4,8 @@ import struct
 
 
 def drum_status(report):
-    """Decode the read-only D1 extension; other applications return None."""
-    if len(report) != 64 or report[16:24] != b'DRUM0001':
+    """Decode the read-only Drum extension; other applications return None."""
+    if len(report) != 64 or report[16:24] not in (b'DRUM0001', b'DRUM0002'):
         return None
     instrument, selected, active, step, external, dirty, saved = report[24:31]
     if instrument > 3 or selected > 1 or active > 1 or step not in (*range(16), 255) or external > 1 or dirty > 1 or saved > 2:
