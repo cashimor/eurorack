@@ -165,7 +165,7 @@ class Cellz:
         try:
             report = self.report()
             result['hid_status'] = report.hex(' ')
-            if report[16:24] in (b'DRUM0001', b'DRUM0002'):
+            if report[16:24] in (b'DRUM0001', b'DRUM0002', b'DRUM0003'):
                 result['drum'] = drum_status(report)
         except (OSError,NotImplementedError,ValueError,RuntimeError) as exc:
             result['hid_status_error'] = str(exc)

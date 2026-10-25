@@ -31,14 +31,16 @@ variation-zero progressions start there and follow the downwards clock paths.
 P5 has also been installed with staging, checksum and startup verification;
 physical confirmation of the corrected top position is pending.
 
-**Drum D2** adds Shift-edited accents on the two CV outputs and three-hit triplets
-spanning adjacent step pairs. Right-button Shift edits accents; left-button Shift
-edits triplets. Shift gestures keep steps enabled and consume the button click.
-Turning a step off clears its accent and breaks its triplet. Two flash journal
-pages save both banks, accents and triplets, with backward loading of D1 patterns.
-D1 and D2 have been installed on the same spare with staging/checksum/startup
-verification. D2 reports `DRUM0002`; musical behavior, output levels and power-off
-restoration still need hardware verification. See the [Drum manual](docs/drum.md).
+**Drum D3** adds selectable 16/32-step playback to the separate drum sequencer.
+Hold the right button and move the swing knob up/down to choose 32/16; swing
+stays steady and uses pickup afterward. The right button cycles A1/A2/B1/B2 in
+32-step mode. Both banks retain all 32 steps, accents and triplets when using
+16 steps, and the shared length is saved too. D1/D2 saves load as 16-step patterns
+with blank second halves. D3 has passed offline tests and was installed on the
+development spare on 2026-10-25, with all 29 staging blocks verified, checksum
+`fcab` accepted and a fresh `DRUM0003` status confirming playback. Physical
+controls and saved-pattern restoration still need user verification.
+See the [Drum manual](docs/drum.md).
 
 ## Start here
 

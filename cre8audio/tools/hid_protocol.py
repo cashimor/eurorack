@@ -5,16 +5,25 @@ import struct
 
 def drum_status(report):
     """Decode the read-only Drum extension; other applications return None."""
-    if len(report) != 64 or report[16:24] not in (b'DRUM0001', b'DRUM0002'):
+    if len(report) != 64 or report[16:24] not in (b'DRUM0001', b'DRUM0002', b'DRUM0003'):
         return None
     instrument, selected, active, step, external, dirty, saved = report[24:31]
-    if instrument > 3 or selected > 1 or active > 1 or step not in (*range(16), 255) or external > 1 or dirty > 1 or saved > 2:
+    d3 = report[16:24] == b'DRUM0003'
+    length, page, pickup = report[31:34] if d3 else (16, 0, 0)
+    if length not in (16, 32) or page >= length // 16 or pickup > 1:
+        raise ValueError('Invalid Drum length/page fields')
+    if instrument > 3 or selected > 1 or active > 1 or step not in (*range(length), 255) or external > 1 or dirty > 1 or saved > 2:
         raise ValueError('Invalid Drum status fields')
-    return {'instrument': instrument + 1, 'selected_bank': 'AB'[selected],
+    status = {'instrument': instrument + 1, 'selected_bank': 'AB'[selected],
             'playing_and_editing_bank': 'AB'[active],
             'step': None if step == 255 else step + 1,
             'external_clock': bool(external), 'unsaved_edits': bool(dirty),
             'last_save': ('none', 'success', 'failed')[saved]}
+    if d3:
+        status.update(length_steps=length, selected_page=f"{'AB'[selected]}{page+1}",
+                      playing_and_editing_page=f"{'AB'[active]}{page+1}",
+                      swing_pickup=bool(pickup))
+    return status
 
 
 def packet(command, index=0, count=0, checksum=0, payload=b'', parameter=0):

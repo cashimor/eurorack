@@ -21,7 +21,8 @@ class Triplet(C.Structure):
     _fields_=[('started_ms',C.c_uint32),('period_us',C.c_uint32)]+[(n,C.c_uint8) for n in ('active','next_hit','step','bank','accent')]
 
 class State(C.Structure):
-    _fields_ = [(n,(C.c_uint16*4)*2) for n in ('patterns','accents','triplets')]
+    _fields_ = [(n,(C.c_uint32*4)*2) for n in ('patterns','accents','triplets')]
+    _fields_ += [('length',C.c_uint32)]
     _fields_ += [(n,C.c_uint32) for n in ('last_ms','phase_us','last_edge_ms','external_period_us','pending_at_ms')]
     _fields_ += [('pulse_until_ms',C.c_uint32*4)]+[(n,C.c_uint32) for n in ('touch_changed_ms','button_changed_ms')]
     _fields_ += [('pressed_ms',C.c_uint32*2)]
@@ -29,6 +30,8 @@ class State(C.Structure):
     _fields_ += [('group',Triplet*4)]
     _fields_ += [(n,C.c_uint16) for n in ('raw_touches','touches','tempo_adc','swing_adc')]
     _fields_ += [(n,C.c_uint8) for n in ('instrument','selected_bank','active_bank','next_step','step','pending_step','external','have_edge','pending','raw_buttons','buttons','combo','combo_saved','dirty','save_requested','saved_status','has_step','outputs','controls_ready','accent_outputs','shift_used','combo_edited')]
+    _fields_ += [(n,C.c_uint8) for n in ('edit_page','swing_pickup','length_gesture')]
+    _fields_ += [(n,C.c_uint16) for n in ('swing_anchor','last_swing_raw')]
 
 class Harness:
     def __init__(self,lib,now=0):
@@ -332,92 +335,213 @@ class Journal:
             self.writes+=1
         return 1
     def save(self,values):
-        return self.lib.drum_store_save(*self.pages,(C.c_uint16*24)(*values),C.byref(self.io))
+        return self.lib.drum_store_save(*self.pages,(C.c_uint32*25)(*values),C.byref(self.io))
     def load(self):
-        values=(C.c_uint16*24)(); sequence=C.c_uint32()
+        values=(C.c_uint32*25)(); sequence=C.c_uint32()
         ok=self.lib.drum_store_load(*self.pages,values,C.byref(sequence))
         return (list(values),sequence.value) if ok else None
 
-class StoreScenarios:
-    def test_erased_boot_has_no_record_and_explicit_save_loads_all_patterns(self):
-        j=Journal(self.lib); self.assertIsNone(j.load()); self.assertEqual(j.writes,0)
-        self.assertEqual(j.save(range(24)),1); self.assertEqual(j.load(),(list(range(24)),1))
-        self.assertEqual(j.erases,[])
-    def test_power_loss_after_every_halfword_preserves_previous_committed_record(self):
-        for cut in range(34):
-            j=Journal(self.lib); j.save(range(24)); j.fail_half=j.writes+cut
-            self.assertEqual(j.save(range(24,48)),0)
-            self.assertEqual(j.load(),(list(range(24)),1))
-            j.fail_half=None; self.assertEqual(j.save(range(48,72)),1)
-            self.assertEqual(j.load(),(list(range(48,72)),2))
-    def test_rollover_erases_only_other_page_and_survives_every_interrupted_word(self):
-        for cut in range(34):
-            j=Journal(self.lib)
-            for n in range(15): self.assertEqual(j.save([n]*24),1)
-            j.fail_half=j.writes+cut; self.assertEqual(j.save([15]*24),0)
-            self.assertEqual(j.erases,[1]); self.assertEqual(j.load(),([14]*24,15))
-    def test_erase_failure_does_not_destroy_latest_record(self):
-        j=Journal(self.lib)
-        for n in range(15): j.save([n]*24)
-        j.erase_failure=True; self.assertEqual(j.save([15]*24),0)
-        self.assertEqual(j.load(),([14]*24,15))
-    def test_crc_corruption_falls_back_and_unknown_data_is_not_erased(self):
-        j=Journal(self.lib); j.save(range(24)); j.save(range(24,48))
-        j.pages[0][68+8]^=1; self.assertEqual(j.load(),(list(range(24)),1))
-        j=Journal(self.lib)
-        j.pages[0][0]=0; j.pages[1][0]=0
-        self.assertEqual(j.save(range(24)),0); self.assertEqual((j.writes,j.erases),(0,[]))
-    def test_interrupted_first_save_can_recover_on_other_blank_page(self):
-        j=Journal(self.lib); j.fail_half=1
-        self.assertEqual(j.save(range(24)),0); self.assertIsNone(j.load())
-        j.fail_half=None; self.assertEqual(j.save(range(24)),1)
-        self.assertEqual(j.load(),(list(range(24)),1))
-    def test_multiple_rollovers_and_sequence_wrap(self):
-        import struct,zlib
-        j=Journal(self.lib)
-        for n in range(90): self.assertEqual(j.save([n]*24),1)
-        self.assertEqual(j.load(),([89]*24,90)); self.assertEqual(j.erases,[1,0,1,0,1])
-        # Manufacture a complete valid last record at sequence UINT32_MAX.
-        j=Journal(self.lib); j.save(range(24))
-        raw=bytearray(bytes(j.pages[0][:68])); struct.pack_into('<I',raw,4,0xffffffff)
-        struct.pack_into('<I',raw,56,zlib.crc32(raw[:56]))
-        j.pages[0][:68]=raw
-        self.assertEqual(j.save([42]*24),1); self.assertEqual(j.load(),([42]*24,0))
+def payload(n=0,length=16):
+    return [((n+i)*0x10001)&0xffffffff for i in range(24)]+[length]
 
-    def legacy_record(self,j,page=0,slot=0,sequence=7):
+class StoreScenarios:
+    def old_record(self,j,version=1,page=0,offset=108,sequence=7):
         import struct,zlib
-        raw=bytearray(36);struct.pack_into('<II8H',raw,0,0x314d5244,sequence,*range(8))
-        struct.pack_into('<III',raw,24,zlib.crc32(raw[:24]),1,0x454e4f44)
-        j.pages[page][slot*36:slot*36+36]=raw
-    def test_d1_load_initializes_accent_triplet_masks_without_writing(self):
-        j=Journal(self.lib);self.legacy_record(j,slot=3)
-        self.assertEqual(j.load(),(list(range(8))+[0]*16,7))
-        self.assertEqual((j.writes,j.erases),(0,[]))
-    def test_first_d2_save_migrates_to_other_page_and_retains_d1(self):
-        j=Journal(self.lib);self.legacy_record(j,slot=3)
-        original=bytes(j.pages[0]);self.assertEqual(j.save(range(24)),1)
-        self.assertEqual(j.erases,[1]);self.assertEqual(bytes(j.pages[0]),original)
-        self.assertEqual(j.load(),(list(range(24)),8))
-    def test_every_interrupted_migration_retains_d1_patterns(self):
-        for cut in range(34):
-            j=Journal(self.lib);self.legacy_record(j,slot=27)
-            old=bytes(j.pages[0]);j.fail_half=cut
-            self.assertEqual(j.save(range(24)),0)
-            self.assertEqual(j.load(),(list(range(8))+[0]*16,7))
-            self.assertEqual(bytes(j.pages[0]),old)
-    def test_interrupted_migration_erase_preserves_d1_latest(self):
-        j=Journal(self.lib);self.legacy_record(j,page=1,sequence=99)
-        j.erase_failure=True;self.assertEqual(j.save(range(24)),0)
-        self.assertEqual(j.load(),(list(range(8))+[0]*16,99))
-    def test_mixed_pages_select_newest_sequence_and_ignore_incomplete_d2(self):
-        j=Journal(self.lib);self.legacy_record(j,page=1,sequence=3)
-        self.assertEqual(j.save(range(24)),1)
-        self.assertEqual(j.load(),(list(range(24)),4))
-        j.pages[0][64]=0 # invalidate D2 commit, fall back to D1
-        self.assertEqual(j.load(),(list(range(8))+[0]*16,3))
+        count=8 if version==1 else 24
+        raw=bytearray(20+2*count)
+        struct.pack_into('<II',raw,0,0x304d5244+version*0x1000000,sequence)
+        struct.pack_into('<'+'H'*count,raw,8,*range(count))
+        at=8+2*count
+        struct.pack_into('<III',raw,at,zlib.crc32(raw[:at]),version,0x454e4f44)
+        j.pages[page][offset:offset+len(raw)]=raw
+        return list(range(count))+[0]*(24-count)+[16]
+    def test_erased_boot_and_save_restore_all_32bit_masks_and_length(self):
+        j=Journal(self.lib);self.assertIsNone(j.load());self.assertEqual(j.writes,0)
+        data=payload(40000,32)
+        self.assertEqual(j.save(data),1);self.assertEqual(j.load(),(data,1))
+        self.assertEqual(j.erases,[])
+    def test_every_interrupted_halfword_retains_previous_save(self):
+        for cut in range(60):
+            j=Journal(self.lib);j.save(payload());j.fail_half=j.writes+cut
+            self.assertEqual(j.save(payload(24,32)),0)
+            self.assertEqual(j.load(),(payload(),1))
+            j.fail_half=None;self.assertEqual(j.save(payload(48,32)),1)
+            self.assertEqual(j.load(),(payload(48,32),2))
+    def test_rotation_preserves_latest_after_every_interrupted_halfword(self):
+        for cut in range(60):
+            j=Journal(self.lib)
+            for n in range(8):self.assertEqual(j.save(payload(n)),1)
+            j.fail_half=j.writes+cut;self.assertEqual(j.save(payload(8)),0)
+            self.assertEqual(j.erases,[1]);self.assertEqual(j.load(),(payload(7),8))
+    def test_erase_failure_preserves_latest(self):
+        j=Journal(self.lib)
+        for n in range(8):j.save(payload(n))
+        j.erase_failure=True;self.assertEqual(j.save(payload(8)),0)
+        self.assertEqual(j.load(),(payload(7),8))
+    def test_crc_and_commit_corruption_fall_back(self):
+        for at in (8,108,112,116):
+            j=Journal(self.lib);j.save(payload());j.save(payload(24))
+            j.pages[0][120+at]^=1;self.assertEqual(j.load(),(payload(),1))
+    def test_unknown_nonblank_pages_are_not_erased(self):
+        j=Journal(self.lib);j.pages[0][0]=j.pages[1][0]=0
+        self.assertEqual(j.save(payload()),0);self.assertEqual((j.writes,j.erases),(0,[]))
+    def test_interrupted_first_save_uses_other_blank_page(self):
+        j=Journal(self.lib);j.fail_half=1
+        self.assertEqual(j.save(payload()),0);self.assertIsNone(j.load())
+        j.fail_half=None;self.assertEqual(j.save(payload()),1)
+        self.assertEqual(j.load(),(payload(),1))
+    def test_multiple_rotations_and_sequence_wrap(self):
+        import struct,zlib
+        j=Journal(self.lib)
+        for n in range(90):self.assertEqual(j.save(payload(n)),1)
+        self.assertEqual(j.load(),(payload(89),90));self.assertEqual(j.erases,[1,0]*5+[1])
+        j=Journal(self.lib);j.save(payload())
+        raw=bytearray(bytes(j.pages[0][:120]));struct.pack_into('<I',raw,4,0xffffffff)
+        struct.pack_into('<I',raw,108,zlib.crc32(raw[:108]));j.pages[0][:120]=raw
+        self.assertEqual(j.save(payload(42)),1);self.assertEqual(j.load(),(payload(42),0))
+    def test_legacy_boot_widens_masks_zero_fills_and_sets_16_without_writes(self):
+        for version in (1,2):
+            j=Journal(self.lib);expected=self.old_record(j,version)
+            self.assertEqual(j.load(),(expected,7));self.assertEqual((j.writes,j.erases),(0,[]))
+    def test_legacy_migration_writes_other_page_and_retains_old_record(self):
+        for version in (1,2):
+            for page in (0,1):
+                j=Journal(self.lib);self.old_record(j,version,page)
+                old=bytes(j.pages[page]);self.assertEqual(j.save(payload(55,32)),1)
+                self.assertEqual(j.erases,[page^1]);self.assertEqual(bytes(j.pages[page]),old)
+                self.assertEqual(j.load(),(payload(55,32),8))
+    def test_every_interrupted_migration_preserves_d1_or_d2(self):
+        for version in (1,2):
+            for cut in range(60):
+                j=Journal(self.lib);expected=self.old_record(j,version)
+                old=bytes(j.pages[0]);j.fail_half=cut
+                self.assertEqual(j.save(payload(55,32)),0)
+                self.assertEqual(j.load(),(expected,7));self.assertEqual(bytes(j.pages[0]),old)
+    def test_migration_erase_failure_preserves_legacy(self):
+        for version in (1,2):
+            j=Journal(self.lib);expected=self.old_record(j,version,page=1)
+            j.erase_failure=True;self.assertEqual(j.save(payload()),0)
+            self.assertEqual(j.load(),(expected,7))
+    def test_crc_valid_invalid_length_rejected_and_not_saved(self):
+        import struct,zlib
+        j=Journal(self.lib);j.save(payload())
+        raw=bytearray(bytes(j.pages[0][:120]));struct.pack_into('<I',raw,104,24)
+        struct.pack_into('<I',raw,108,zlib.crc32(raw[:108]));j.pages[0][:120]=raw
+        self.assertIsNone(j.load())
+        self.assertEqual(j.save(payload(length=24)),0)
+
+class LengthScenarios:
+    def gesture(self,h,at,start,end):
+        h.update(at,buttons=2,swing=start);h.update(at+25)
+        h.update(at+30,swing=end)
+        h.update(at+40,buttons=0);h.update(at+65)
+    def tap(self,h,at,pad,buttons=0):
+        h.update(at,touches=1<<(15-pad),buttons=buttons);h.update(at+12)
+        h.update(at+13,touches=0);h.update(at+25)
+    def test_default_16_and_up_gesture_32_consumes_click_freezes_swing(self):
+        h=self.harness();h.update(0,swing=1000)
+        self.assertEqual(h.state.length,16)
+        self.gesture(h,10,1000,1700)
+        self.assertEqual((h.state.length,h.state.edit_page,h.state.selected_bank),(32,0,0))
+        self.assertEqual((h.state.swing_adc,h.state.swing_pickup,h.state.dirty),(1000,1,1))
+    def test_four_edit_pages_and_gate_inversion_preserves_half_and_position(self):
+        h=self.harness();h.edit(length=32)
+        observed=[]
+        for i in range(4):
+            observed.append((h.state.selected_bank,h.state.edit_page));h.click(i*100,2)
+        self.assertEqual(observed,[(0,0),(0,1),(1,0),(1,1)])
+        self.assertEqual((h.state.selected_bank,h.state.edit_page),(0,0))
+        h.click(500,2);h.update(600,clock_edge=1)
+        step=h.state.step;h.update(601,alternate=1)
+        self.assertEqual((h.state.active_bank,h.state.edit_page,h.state.step),(1,1,step))
+    def test_page_two_edit_and_leds_do_not_change_first_half(self):
+        h=self.harness();h.edit(length=32,edit_page=1);h.pattern(0,0,0)
+        self.tap(h,0,0)
+        self.assertEqual(h.pattern(0,0),1<<16)
+        self.assertEqual(h.leds(25),0x8000)
+        h.edit(has_step=1,step=0,last_step_ms=25)
+        self.assertEqual(h.leds(25),0x8000)
+        h.edit(step=16);self.assertEqual(h.leds(25),0)
+    def test_32_step_playback_wraps_after_32_and_16_after_16(self):
+        for length in (16,32):
+            h=self.harness();h.edit(length=length)
+            steps=[]
+            for i in range(length+1):h.update(i*100,clock_edge=1);steps.append(h.state.step)
+            self.assertEqual(steps,list(range(length))+[0])
+    def test_second_half_survives_down_and_up_including_all_modifiers(self):
+        h=self.harness();h.update(0,swing=1000);h.edit(length=32,edit_page=1)
+        for kind in ('patterns','accents','triplets'):h.mask(kind,1,3,0x90018003)
+        self.gesture(h,10,2000,1000);self.assertEqual(h.state.length,16)
+        self.gesture(h,100,1000,2000);self.assertEqual(h.state.length,32)
+        for kind in ('patterns','accents','triplets'):self.assertEqual(h.mask(kind,1,3),0x90018003)
+    def test_small_movements_do_not_change_length_or_consume_click(self):
+        h=self.harness();h.update(0,swing=1000)
+        self.gesture(h,10,1000,1511)
+        self.assertEqual((h.state.length,h.state.selected_bank,h.state.swing_adc),(16,1,1000))
+    def test_gesture_at_current_length_still_consumes_click_and_one_per_hold(self):
+        h=self.harness();h.update(0,swing=2000)
+        h.update(10,buttons=2);h.update(35);h.update(40,swing=1000)
+        self.assertEqual(h.state.length_gesture,1);self.assertEqual(h.leds(40),0x8000)
+        h.update(50,swing=3000);self.assertEqual(h.state.length,16)
+        h.update(60,buttons=0);h.update(85);self.assertEqual(h.state.selected_bank,0)
+    def test_length_confirmation_and_pad_suppression_until_release(self):
+        h=self.harness();h.update(0,swing=0)
+        h.update(10,buttons=2);h.update(35);h.update(40,swing=600)
+        self.assertEqual(h.leds(40),0xc000);before=h.pattern(0,0)
+        self.tap(h,50,0,2);self.assertEqual(h.pattern(0,0),before)
+    def test_pad_accent_edit_takes_priority_over_knob_gesture(self):
+        h=self.harness();h.edit(instrument=2);h.update(0,swing=1000)
+        self.tap(h,10,0,2);h.update(40,swing=3000)
+        self.assertEqual(h.state.length,16);self.assertTrue(h.mask('accents',0,2)&1)
+    def test_touch_on_same_tick_as_knob_gesture_prevents_length_change(self):
+        h=self.harness();h.update(0,swing=1000);h.update(10,buttons=2);h.update(35)
+        h.update(40,swing=3000,touches=0x8000);h.update(52)
+        self.assertEqual(h.state.length,16)
+    def test_swing_pickup_by_nearness_or_crossing(self):
+        for value in (1010,900):
+            h=self.harness();h.update(0,swing=1000);self.gesture(h,10,1000,2000)
+            h.update(80,swing=1700);self.assertEqual(h.state.swing_adc,1000)
+            h.update(90,swing=value);self.assertEqual(h.state.swing_pickup,0)
+            h.update(100,swing=800);self.assertEqual(h.state.swing_adc,800)
+    def test_length_change_resets_cycle_cancels_pulses_and_subdivisions(self):
+        h=self.harness();h.update(0,swing=1000)
+        h.edit(next_step=10,step=9,has_step=1,outputs=15,accent_outputs=12,pending=1,pending_at_ms=1000)
+        self.gesture(h,10,1000,2000)
+        self.assertEqual((h.state.next_step,h.state.has_step,h.state.outputs,h.state.pending),(0,0,0,0))
+        h.update(100,clock_edge=1);self.assertEqual(h.state.step,0)
+    def test_length_gesture_cannot_turn_into_save_combo(self):
+        h=self.harness();h.update(0,swing=0)
+        h.update(10,buttons=2);h.update(35);h.update(40,swing=1000)
+        h.update(50,buttons=3);h.update(75);h.update(1600)
+        self.assertEqual(h.state.save_requested,0)
+        h.update(1700,buttons=0);h.update(1725)
+        h.update(1800,buttons=3);h.update(1825);h.update(3325)
+        self.assertEqual(h.state.save_requested,1)
+    def test_triplet_crosses_page_boundary_and_32_wrap(self):
+        for page,pad,mask in ((0,15,0x18000),(1,15,0x80000001)):
+            h=self.harness();h.edit(length=32,edit_page=page,instrument=2);h.pattern(0,2,0)
+            self.tap(h,0,pad,1)
+            self.assertEqual(h.pattern(0,2),mask)
+            self.assertEqual(h.mask('triplets',0,2),1<<(page*16+pad))
+    def test_accent_and_unselect_work_on_page_two_and_cross_page_triplet(self):
+        h=self.harness();h.edit(length=32,instrument=2,edit_page=1)
+        h.pattern(0,2,0x18000);h.mask('triplets',0,2,0x8000)
+        self.tap(h,0,0,2);self.assertEqual(h.mask('accents',0,2),0x18000)
+        h.update(50,buttons=0);h.update(75);self.tap(h,100,0)
+        self.assertEqual((h.pattern(0,2),h.mask('triplets',0,2)),(0x8000,0))
+    def test_upper_half_accented_triplet_plays_three_hits(self):
+        h=self.harness();h.update(0,tempo=4095);h.edit(length=32,next_step=31)
+        for t in range(4):h.pattern(0,t,0)
+        h.pattern(0,2,0x80000001);h.mask('triplets',0,2,0x80000000);h.mask('accents',0,2,1)
+        hits=[]
+        for now in range(1,189):
+            before=h.state.outputs;h.update(now)
+            if h.state.outputs&4 and not before&4:
+                hits.append(now);self.assertEqual(h.state.accent_outputs,4)
+        self.assertEqual(hits,[63,105,147])
 
 @unittest.skipUnless(COMPILER and sys.platform!='win32','Native C tests use a Unix C compiler')
-class NativeTests(Scenarios,EditScenarios,StoreScenarios,unittest.TestCase):
+class NativeTests(Scenarios,EditScenarios,LengthScenarios,StoreScenarios,unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.directory=tempfile.TemporaryDirectory(); path=Path(cls.directory.name)/'drum.so'

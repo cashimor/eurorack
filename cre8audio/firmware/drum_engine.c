@@ -5,8 +5,10 @@
 static uint32_t difference(uint32_t a,uint32_t b) { return a>b?a-b:b-a; }
 static uint32_t base_us(const Drum *d) { return 15000000u/(40u+d->tempo_adc*200u/4095u); }
 static uint32_t swing_part(const Drum *d) { return 500u+d->swing_adc*250u/4095u; }
-static uint32_t bit(uint32_t step) { return 1u<<(step&15u); }
-static uint32_t pair(uint32_t step) { return bit(step)|bit(step+1u); }
+static uint32_t bit(uint32_t step) { return 1u<<(step&31u); }
+static uint32_t next(const Drum *d,uint32_t step) { return (step+1u)%d->length; }
+static uint32_t previous(const Drum *d,uint32_t step) { return (step+d->length-1u)%d->length; }
+static uint32_t pair(const Drum *d,uint32_t step) { return bit(step)|bit(next(d,step)); }
 static void cancel_groups(Drum *d) { for(uint32_t t=0;t<4;++t) d->group[t].active=0; }
 
 void drum_init(Drum *d,uint32_t now) {
@@ -17,7 +19,7 @@ void drum_init(Drum *d,uint32_t now) {
         {0x1010,0x4040,0x1111,0x5555},{0xf010,0xc444,0x1151,0xdddd}
     };
     for(uint32_t b=0;b<2;++b) for(uint32_t t=0;t<4;++t) d->patterns[b][t]=defaults[b][t];
-    d->last_ms=now;d->step=15;
+    d->length=16;d->last_ms=now;d->step=15;
 }
 uint32_t drum_interval_us(const Drum *d) {
     uint32_t base=base_us(d),long_step=base*2u*swing_part(d)/1000u;
@@ -40,14 +42,14 @@ static void play(Drum *d,uint32_t step,uint32_t now) {
     for(uint32_t t=0;t<4;++t) {
         DrumTriplet *g=&d->group[t];
         uint32_t starts=d->triplets[d->active_bank][t];
-        uint32_t previous=(step+15u)&15u;
-        if(g->active && g->bank==d->active_bank && g->step==previous && (starts&bit(previous)))
+        uint32_t prior=previous(d,step);
+        if(g->active && g->bank==d->active_bank && g->step==prior && (starts&bit(prior)))
             continue; /* The paired pad is covered by the three-hit schedule. */
         g->active=0;
         if(!(d->patterns[d->active_bank][t]&bit(step))) continue;
         uint32_t accent=d->accents[d->active_bank][t]&bit(step);
-        if((starts&bit(step)) && (d->patterns[d->active_bank][t]&pair(step))==pair(step)) {
-            accent=d->accents[d->active_bank][t]&pair(step);
+        if((starts&bit(step)) && (d->patterns[d->active_bank][t]&pair(d,step))==pair(d,step)) {
+            accent=d->accents[d->active_bank][t]&pair(d,step);
             g->started_ms=now;g->period_us=d->external?d->external_period_us:base_us(d);
             g->active=1;g->next_hit=1;g->step=(uint8_t)step;g->bank=d->active_bank;g->accent=accent?1:0;
         }
@@ -70,38 +72,38 @@ static void service_groups(Drum *d,uint32_t now) {
 }
 static void request(Drum *d,uint32_t now,uint32_t external) {
     uint32_t step=d->next_step;
-    d->next_step=(step+1u)&15u;d->pending=0;
+    d->next_step=next(d,step);d->pending=0;
     uint32_t delay=external&&(step&1u)?d->external_period_us*(2u*swing_part(d)-1000u)/1000u:0u;
     if(delay) {d->pending=1;d->pending_step=(uint8_t)step;d->pending_at_ms=now+(delay+999u)/1000u;}
     else play(d,step,now);
 }
-static uint32_t group_mask(uint32_t starts,uint32_t step) {
-    if(starts&bit(step)) return pair(step);
-    if(starts&bit(step+15u)) return pair(step+15u);
+static uint32_t group_mask(const Drum *d,uint32_t starts,uint32_t step) {
+    if(starts&bit(step)) return pair(d,step);
+    if(starts&bit(previous(d,step))) return pair(d,previous(d,step));
     return bit(step);
 }
 static void edit(Drum *d,uint32_t step,uint32_t modifiers) {
     uint32_t bank=d->active_bank,t=d->instrument;
-    uint16_t *p=&d->patterns[bank][t],*a=&d->accents[bank][t],*g=&d->triplets[bank][t];
+    uint32_t *p=&d->patterns[bank][t],*a=&d->accents[bank][t],*g=&d->triplets[bank][t];
     uint32_t mask=bit(step);
     d->shift_used|=(uint8_t)modifiers;
     if(modifiers==3u) {d->combo_edited=1;return;} /* Both buttons are save, not edit. */
     if(modifiers==2u) {
-        mask=group_mask(*g,step);*p|=(uint16_t)mask;
-        if(t>=2u) { if(*a&mask) *a&=(uint16_t)~mask;else *a|=(uint16_t)mask; }
+        mask=group_mask(d,*g,step);*p|=mask;
+        if(t>=2u) { if(*a&mask) *a&=~mask;else *a|=mask; }
     } else if(modifiers==1u) {
-        mask=pair(step);*p|=(uint16_t)mask;
-        if(*g&bit(step)) *g&=(uint16_t)~bit(step);
+        mask=pair(d,step);*p|=mask;
+        if(*g&bit(step)) *g&=~bit(step);
         else {
             /* Remove overlapping groups; their other steps remain enabled. */
-            *g&=(uint16_t)~(bit(step+15u)|bit(step+1u));*g|=(uint16_t)bit(step);
-            if(t>=2u && (*a&mask)) *a|=(uint16_t)mask;
+            *g&=~(bit(previous(d,step))|bit(next(d,step)));*g|=bit(step);
+            if(t>=2u && (*a&mask)) *a|=mask;
         }
     } else {
         if(*p&mask) {
-            *p&=(uint16_t)~mask;*a&=(uint16_t)~mask;
-            *g&=(uint16_t)~(bit(step)|bit(step+15u));
-        } else *p|=(uint16_t)mask;
+            *p&=~mask;*a&=~mask;
+            *g&=~(bit(step)|bit(previous(d,step)));
+        } else *p|=mask;
     }
     d->group[t].active=0;d->dirty=1;
 }
@@ -113,9 +115,22 @@ uint32_t drum_update(Drum *d,const DrumInput *in) {
         if(d->controls_ready) cancel_groups(d);
         d->tempo_adc=(uint16_t)tempo;
     }
-    if(!d->controls_ready || difference(swing,d->swing_adc)>=16u) d->swing_adc=(uint16_t)swing;
-    d->controls_ready=1;
     uint32_t buttons=in->buttons&3u;
+    if(!d->controls_ready) {
+        d->swing_adc=(uint16_t)swing;d->last_swing_raw=(uint16_t)swing;
+    }
+    if((buttons&2u) && !(d->raw_buttons&2u)) {
+        d->swing_anchor=(uint16_t)swing;d->swing_pickup=1;
+    }
+    /* Freeze swing during accent/length edits. After release, pick up the
+     * old value by reaching or crossing it, so changing length cannot jump swing. */
+    if(!((buttons|d->buttons)&2u)) {
+        if(d->swing_pickup && (difference(swing,d->swing_adc)<=32u ||
+           (d->last_swing_raw<d->swing_adc && swing>=d->swing_adc) ||
+           (d->last_swing_raw>d->swing_adc && swing<=d->swing_adc))) d->swing_pickup=0;
+        if(!d->swing_pickup && difference(swing,d->swing_adc)>=16u) d->swing_adc=(uint16_t)swing;
+    }
+    d->last_swing_raw=(uint16_t)swing;d->controls_ready=1;
     if(buttons!=d->raw_buttons) {d->raw_buttons=(uint8_t)buttons;d->button_changed_ms=now;}
     if(buttons!=d->buttons && now-d->button_changed_ms>=20u) {
         uint32_t rising=buttons&~d->buttons,falling=d->buttons&~buttons;
@@ -123,12 +138,28 @@ uint32_t drum_update(Drum *d,const DrumInput *in) {
         if(buttons==3u && !d->combo) {d->combo=1;d->combo_ms=now;}
         if(!d->combo) for(uint32_t i=0;i<2;++i)
             if((falling&(1u<<i)) && !(d->shift_used&(1u<<i)) && now-d->pressed_ms[i]<800u) {
-                if(i==0) d->instrument=(d->instrument+1u)&3u;else d->selected_bank^=1u;
+                if(i==0) d->instrument=(d->instrument+1u)&3u;
+                else if(d->length==32u && d->edit_page==0u) d->edit_page=1;
+                else {d->edit_page=0;d->selected_bank^=1u;}
             }
         d->buttons=(uint8_t)buttons;
         if(!buttons && d->combo) d->combo=d->combo_saved=d->combo_edited=0;
     }
+    if(!(buttons|d->buttons)) d->length_gesture=0;
     d->shift_used&=(uint8_t)(buttons|d->buttons);
+    uint32_t changed_length=0;
+    if(buttons==2u && d->buttons==2u && !d->combo && !d->length_gesture &&
+       !(d->shift_used&2u) && !in->touches && !d->touches &&
+       difference(swing,d->swing_anchor)>=512u) {
+        uint32_t length=swing>d->swing_anchor?32u:16u;
+        d->length_gesture=1;d->shift_used|=2u;
+        if(length!=d->length) {
+            d->length=length;d->edit_page=0;d->next_step=0;d->step=(uint8_t)(length-1u);
+            d->has_step=d->pending=d->outputs=d->accent_outputs=0;
+            d->phase_us=0;d->dirty=1;cancel_groups(d);changed_length=1;
+        }
+    }
+    if(d->length_gesture && (buttons==3u || d->buttons==3u)) d->combo_edited=1;
     if((buttons==3u || d->buttons==3u) && in->touches) d->combo_edited=1;
     uint32_t bank=d->selected_bank^(in->alternate?1u:0u);
     if(bank!=d->active_bank) cancel_groups(d);
@@ -137,12 +168,13 @@ uint32_t drum_update(Drum *d,const DrumInput *in) {
     if(now-d->touch_changed_ms>=12u) {
         uint32_t pressed=d->raw_touches&~d->touches;
         for(uint32_t pad=0;pad<16;++pad) if(pressed&bit(pad))
-            edit(d,15u-pad,buttons?buttons:d->buttons);
+            if(!d->length_gesture) edit(d,d->edit_page*16u+15u-pad,buttons?buttons:d->buttons);
         d->touches=d->raw_touches;
     }
     if(d->buttons==3u && buttons==3u && d->combo && !d->combo_saved && !d->combo_edited && !in->touches && now-d->combo_ms>=1500u) {
         d->combo_saved=1;d->save_requested=1;
     }
+    if(changed_length) return d->outputs;
     uint32_t accepted=in->clock_edge&&(!d->have_edge || now-d->last_edge_ms>=20u);
     if(accepted) {
         uint32_t interval=now-d->last_edge_ms;
@@ -171,12 +203,17 @@ uint32_t drum_update(Drum *d,const DrumInput *in) {
 }
 uint32_t drum_led_mask(const Drum *d,uint32_t now) {
     if((int32_t)(now-d->feedback_until_ms)<0) return 0;
+    if(d->length_gesture) return d->length==32u?0xc000u:0x8000u;
     uint32_t mask=d->patterns[d->active_bank][d->instrument],modifiers=d->raw_buttons|d->buttons;
     if(modifiers==2u) mask=d->accents[d->active_bank][d->instrument]&mask;
     else if(modifiers==1u) {
         uint32_t starts=d->triplets[d->active_bank][d->instrument];
-        mask&=starts|((starts<<1)&65535u)|(starts>>15);
+        uint32_t members=0;
+        for(uint32_t step=0;step<d->length;++step)
+            if((starts&bit(step)) && (mask&pair(d,step))==pair(d,step)) members|=pair(d,step);
+        mask&=members;
     } else if(!modifiers && d->has_step && now-d->last_step_ms<60u) mask&=~bit(d->step);
+    mask>>=d->edit_page*16u;
     uint32_t physical=0;
     for(uint32_t step=0;step<16;++step) if(mask&bit(step)) physical|=bit(15u-step);
     return physical;
