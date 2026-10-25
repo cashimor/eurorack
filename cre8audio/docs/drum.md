@@ -9,10 +9,12 @@ It sends pulses to an external drum module; it does not generate audio.
 Harmony remains a separate application with its own unchanged source and builder.
 
 D1 was installed on one modified spare Cellz on 2026-10-24, with all staging blocks
-verified, checksum accepted, and a fresh `DRUM0001` status. **D2 is an offline
-candidate and has not been flashed.** It adds Shift accents, triplet pairs and
-storage migration. Timing, controls, LED visibility, actual output voltages and
-power-off restoration need a D2 hardware trial.
+verified, checksum accepted, and a fresh `DRUM0001` status. **D2 was installed
+on that spare on 2026-10-25:** all 28 staging blocks were verified, checksum `b6ef`
+was accepted, and a fresh USB read confirmed `DRUM0002` with playback advancing.
+It adds Shift accents, triplet pairs and storage migration. Timing, controls, LED
+visibility, actual output voltages, saved-pattern migration and power-off
+restoration still need D2 hardware verification.
 
 ## Controls
 

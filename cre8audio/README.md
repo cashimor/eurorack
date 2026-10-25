@@ -36,8 +36,9 @@ spanning adjacent step pairs. Right-button Shift edits accents; left-button Shif
 edits triplets. Shift gestures keep steps enabled and consume the button click.
 Turning a step off clears its accent and breaks its triplet. Two flash journal
 pages save both banks, accents and triplets, with backward loading of D1 patterns.
-D1 was installed and verified on the same spare; D2 is a separate offline candidate
-with hardware verification pending. See the [Drum manual](docs/drum.md).
+D1 and D2 have been installed on the same spare with staging/checksum/startup
+verification. D2 reports `DRUM0002`; musical behavior, output levels and power-off
+restoration still need hardware verification. See the [Drum manual](docs/drum.md).
 
 ## Start here
 
