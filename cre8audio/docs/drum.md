@@ -1,128 +1,182 @@
-# Cellz Drum D1
+# Cellz Drum D2
 
 **Maarten Hofman (cashimor) is not responsible for damage, loss, or malfunction of
 Cre8audio gear or other equipment resulting from use of this project. Use it at
 your own risk. There is no warranty or manufacturer endorsement.**
 
-D1 is a separate experimental drum sequencer application. It preserves the
-Harmony source and builder; installing either application replaces the running
-application. D1 has passed host and compiled ARM simulation tests and was
-installed on one modified spare Cellz on 2026-10-24. All 27 staging blocks were
-verified, checksum `c503` was accepted, and a fresh USB read confirmed `DRUM0001`
-with the sequencer advancing. LED brightness/ghosting, touch behavior while
-scanning, trigger timing, output voltages and saved-pattern power-cycle restoration
-still need hardware verification.
-It does not generate audio: connect its four pulse outputs to drum trigger inputs.
+Drum is a separate four-instrument, 16-step sequencer with two pattern banks.
+It sends pulses to an external drum module; it does not generate audio.
+Harmony remains a separate application with its own unchanged source and builder.
+
+D1 was installed on one modified spare Cellz on 2026-10-24, with all staging blocks
+verified, checksum accepted, and a fresh `DRUM0001` status. **D2 is an offline
+candidate and has not been flashed.** It adds Shift accents, triplet pairs and
+storage migration. Timing, controls, LED visibility, actual output voltages and
+power-off restoration need a D2 hardware trial.
 
 ## Controls
 
-| Control | Drum function |
+| Control | Function |
 | --- | --- |
-| Former harmony knob | Internal tempo, 40–240 BPM; four sixteenth-note steps per beat |
-| Former variation knob | Swing, straight 50% to 75% of each two-step pair |
-| Left Tune button, short click | Cycle instrument 1 → 2 → 3 → 4 → 1 |
-| Right Tune button, short click | Toggle the selected pattern bank A/B |
-| Pad | Toggle that step of the displayed instrument in the currently audible bank |
-| Left gate input | External clock: one rising jack edge per sixteenth-note step |
-| Right gate input | While high, invert the selected bank |
-| Both Tune buttons held 1.5 seconds | Save all eight patterns to flash |
+| Former harmony knob | Internal tempo, 40–240 BPM, four sixteenth steps per beat |
+| Former variation knob | Swing, 50% straight to 75% of a two-step pair |
+| Left Tune button, short click | Cycle edited instrument 1 → 2 → 3 → 4 → 1 |
+| Right Tune button, short click | Toggle selected pattern bank A/B |
+| Pad without a Shift button | Toggle that step |
+| Hold right button + touch a pad | Toggle its accent; CV instruments 3 and 4 only |
+| Hold left button + touch one pad | Toggle a triplet covering this step and the next |
+| Hold both buttons 1.5 seconds, without pad edits | Save both banks, all four instruments and their modifiers |
+| Left gate input | External sixteenth-note clock; overrides the internal clock |
+| Right gate input | While high, invert the bank selected with the right button |
 
-The bank playing and being edited is `selected_bank XOR right_gate_high`.
-For example: select A, click to B, raise the gate to hear A, click to hear B,
-then lower the gate to hear A. Gate changes and bank clicks take effect on the
-next step; the LED/edit view changes immediately. They do not reset the playhead.
-A pad already held does not toggle again when you change instruments or banks.
-Brief simultaneous button presses do not select an instrument or bank; release
-both before another click. A long single-button press has no action in D1.
+A Shift edit consumes that button press: release does not change instrument or
+bank. There is no need to press two pads together. **Neither Shift gesture can
+turn a step off**: it enables the step/pair before editing the modifier. Holding
+both buttons together is reserved for saving; pads cannot edit in that state,
+and touching a pad cancels saving until both buttons have been released.
+A long single-button press without a pad has no selection action.
 
-All four instruments keep playing while you edit one. D1 starts with instrument
-1 and bank A selected, and the internal clock runs automatically. It has no
-start/stop or erase-all gesture yet. There is no dedicated bank/instrument LED;
-count the clicks from startup, or use the updater's read-only `inspect` status.
+Ordinary multi-pad touches still toggle every touched step, allowing hi-hat
+painting. A held pad does not toggle again when the instrument or bank changes.
+There is no start/stop or erase-all gesture in D2; internal playback starts at boot.
 
-## Pads, LEDs and outputs
+## Accents
+
+Accents apply only to the **two original CV output jacks**, instruments 3 and 4.
+Their normal pulse level uses DAC code 1352 (nominal approximately 3.3 V); an
+accent uses code 2048 (nominal approximately 5 V). LOW is code 0. The original
+pitch scaling provides the voltage estimate; **D2 jack voltages have not been
+measured**. Verify levels before patching voltage-limited inputs.
+
+Hold the right button to view accented pads only. Touch a pad to toggle its accent;
+release the button to return to the ordinary step display. A previously disabled
+pad becomes enabled. On instruments 1 and 2 this gesture enables the step, but
+cannot add a voltage accent because those use fixed digital gate outputs.
+
+An accent on either member of a triplet applies to all three hits. Both pads show
+accented in the accent view; touching either while holding the right button toggles
+the whole pair's accent. Creating a triplet from an accented single propagates the
+accent to both pads.
+
+Suggested Bilma patch: CV instrument 3 → kick, CV instrument 4 → hi-hat. The
+updated Bilma code uses lower pulses as normal hits, higher pulses as accents,
+and ORs them with its separate accent jack. Accented hi-hat follows Bilma's
+original louder open-hat behavior. Plain gate-only drum inputs will simply receive
+triggers at either pulse height.
+
+## Triplets
+
+Hold the left button to view triplet pairs only. Touch the **first** pad of a pair:
+this step and the next become enabled and play three evenly spaced hits in the
+same time normally occupied by two steps. Touch the first pad again with left
+Shift to return both pads to normal single steps. The final step pairs with step 1
+across the bar boundary. A new overlapping pair replaces the conflicting triplet;
+other enabled steps remain enabled.
+
+Triplets can be enabled independently on all four instruments and in both banks.
+They keep the bar length unchanged. For example, at an internal tempo of 120 BPM,
+two sixteenth steps occupy 250 ms: the three hits are at 0, approximately 83.3 and
+166.7 ms within that span. Timing is resolved to the 1 ms firmware tick.
+
+Triplet hits are straight within their two-step span, even with swing enabled;
+other instruments retain their own swung single steps. External triplets interpolate
+using the latest clock-period estimate. The first external pulse uses the tempo
+knob as an estimate until a second clock arrives. Abrupt external period changes
+over 25%, clock takeover, timeout, tempo changes or bank changes cancel outstanding
+subdivisions. Stalls skip overdue hits instead of replaying a burst. These are
+practical clock-following rules, not sample-accurate timing guarantees.
+
+**Turning an enabled pad off normally clears its accent and breaks any triplet
+containing it.** The other pad remains enabled as a single step, retaining its own
+accent. In the first partial cycle, a wrapping pair's second pad can play as a
+single until its first pad has been reached.
+
+## Pads, LEDs, banks and outputs
 
 Step 1 is the physical top (hardware pad 15). Steps follow descending hardware
-pad numbers through all 16 positions and wrap. This is a linear 16-step sequence,
-not Harmony's two diagonal movement paths. Verify the physical order in the first
-hardware trial. Enabled steps are lit; disabled steps stay dark. An enabled
-playhead briefly goes dark for 20 ms as playback passes it. The display scans one
-pad per millisecond (62.5 Hz full refresh), with only one LED electrically on at
-a time, preserving the original peak LED load. It may appear dimmer or flicker;
-brightness and camera appearance need a bench check.
+pad numbers through all 16 positions and wrap; this is a linear sequence rather
+than Harmony's diagonal movement paths. Normal view lights enabled steps. An
+enabled playhead goes dark for 60 ms; Shift views show modifiers without that
+playhead blink. The display scans one pad per millisecond (62.5 Hz full refresh),
+with one LED electrically active at a time to preserve the original peak load.
+Brightness, flicker, camera visibility and physical ordering need bench checks.
 
-| Instrument | Output jack | Pulse |
+All four instruments play while one is edited. The audible/editable bank is
+`selected_bank XOR right_gate_high`. Select A, click to B, raise the gate to hear A,
+click to hear B, then lower the gate to hear A. The view changes immediately;
+subsequent hits use that bank, without resetting the playhead. The current 5 ms
+pulse can finish normally. Selection starts at instrument 1 and bank A.
+
+| Instrument | Output | Suggested factory sound | Pulse |
+| --- | --- | --- | --- |
+| 1 | First original gate jack | Snare | Fixed gate, 5 ms |
+| 2 | Second original gate jack | Clap | Fixed gate, 5 ms |
+| 3 | First original CV jack | Kick | Normal/accent DC level, 5 ms |
+| 4 | Second original CV jack | Hi-hat | Normal/accent DC level, 5 ms |
+
+No jack changes direction; PWM is confined to the existing LED circuitry.
+Factory defaults load only without a valid save. All modifiers initially are off:
+
+| Instrument | Bank A enabled steps | Bank B enabled steps |
 | --- | --- | --- |
-| 1 | First original gate output | 5 ms, existing digital gate circuit |
-| 2 | Second original gate output | 5 ms, existing digital gate circuit |
-| 3 | First original CV output | 5 ms, DAC code 0 → 2048 → 0 |
-| 4 | Second original CV output | 5 ms, DAC code 0 → 2048 → 0 |
+| 1 / snare | 5, 13 | 5, 13, 14, 15, 16 |
+| 2 / clap | 7, 15 | 3, 7, 11, 15, 16 |
+| 3 / kick | 1, 5, 9, 13 | 1, 5, 7, 9, 13 |
+| 4 / hi-hat | 1, 3, 5, 7, 9, 11, 13, 15 | 1, 3, 4, 5, 7, 8, 9, 11, 12, 13, 15, 16 |
 
-The CV high setting is inferred to be approximately 5 V from the original pitch
-scaling. **Neither CV low nor high voltage has been measured for D1.** Measure
-the jacks before connecting them to an ADC or other voltage-limited input.
-D1 uses DC levels on the CV jacks and ordinary digital pulses on the gate jacks;
-its PWM is confined to the existing LED circuitry. No jack changes direction.
-
-Factory patterns below list enabled steps (numbered 1–16). They load only when
-there is no valid saved record. All four patterns in each bank play together.
-
-| Instrument | Bank A | Bank B |
-| --- | --- | --- |
-| 1 | 1, 5, 9, 13 | 1, 5, 7, 9, 13 |
-| 2 | 5, 13 | 5, 13, 14, 15, 16 |
-| 3 | 1, 3, 5, 7, 9, 11, 13, 15 | 1, 3, 4, 5, 7, 8, 9, 11, 12, 13, 15, 16 |
-| 4 | 7, 15 | 3, 7, 11, 15, 16 |
+Existing D1 saves retain their original pattern-to-output assignments. They are
+not reordered to match these suggested sounds. Check your patch and edited
+instrument; the firmware does not impose drum names.
 
 ## External clock and swing
 
-An accepted left input edge immediately takes over from the internal clock.
-External pulses are steps, not quarter notes; use a 16th-note clock. Edges less
-than 20 ms apart are rejected. The tempo knob continues to set the fallback
-internal rate. If pulses stop for more than three measured periods (at least
-500 ms), the internal clock resumes from the next step with a fresh timing phase.
-Gaps above four seconds use the knob interval as the new period estimate.
+Left gate rising edges are sixteenth-note steps, with edges less than 20 ms apart
+rejected. An edge takes over from the internal clock. After more than three
+measured periods without another edge (at least 500 ms), internal timing resumes
+from the next step with a fresh phase. Gaps above four seconds use the knob interval
+as the new estimate. The tempo knob always sets the internal fallback rate.
 
-Swing keeps an internal two-step pair's total duration constant. With an external
-clock, even-numbered steps (2, 4, …) are delayed by up to half the measured pulse
-period. Feed a straight external clock if you want D1 to apply swing. A new input
-edge cancels an overdue delayed step instead of replaying a burst. Long main-loop
-stalls also advance at most one internal step per update. Hardware timing uses a
-1 ms tick, so it is not sample-accurate.
+Internal swing alternates longer/shorter intervals while preserving pair duration.
+External swing delays even-numbered steps (2, 4, …) by up to half a clock period;
+feed a straight external clock for this mode. A new edge cancels an overdue delayed
+step, avoiding a burst. Long main-loop stalls advance at most one base step per
+update. Each output has an independent pulse-expiry timer for triplet playback.
 
-## Saving and power loss
+## Saving, D1 migration and power loss
 
-**Hold both Tune buttons for 1.5 seconds to save both banks and all four tracks.**
-Release both afterward. The LEDs briefly blank during feedback. Ordinary pad
-edits do not write flash. Unsaved edits disappear at power-off; saved patterns
-are loaded at boot independently of how long power was absent. The selected
-instrument/bank, playhead and knob positions are not stored.
+**Hold both buttons for 1.5 seconds with no pad edits to explicitly save everything:**
+16-step masks, accent masks and triplet starts for both banks and all four tracks.
+Release both buttons afterward. Ordinary edits do not write flash. Unsaved edits
+are lost at power-off. Saved patterns load independently of the power-off duration;
+instrument selection, bank selection, playhead and knob positions are temporary.
 
-The save briefly mutes every output, blanks the LEDs, disables interrupts and
-pauses timing/USB handling while programming flash. Save between performances.
-Read-only inspection reports `unsaved_edits` and `last_save` (`none`, `success`,
-`failed`). Inspect after the save finishes to confirm success; the brief blanking
-alone is not a success indication.
+Saving briefly mutes outputs, blanks LEDs and pauses interrupts/timing/USB while
+programming flash. Save between performances. The brief blanking is not proof of
+success; read-only inspection reports `unsaved_edits` and `last_save`:
 
 ```powershell
 python tools/cellz_update.py inspect
 ```
 
-Patterns use two 1 KB flash pages at `0x0800e800` and `0x0800ec00`, outside the
-pinned application, its update erase span, bootloader and factory settings area.
-Each page holds 28 records. Each save appends a sequence number, eight pattern
-masks, CRC32, format version and a commit word written last. When full, only the
-other page is erased. Interrupted writes are ignored, leaving the preceding
-complete save available. First use requires an entirely erased page: unidentified
-data is not automatically erased. Flash has finite endurance; the explicit save
-gesture avoids programming it for every edit. Physical power-loss behavior still
-needs hardware validation; the failure tests model flash programming and erasure.
+Storage remains at `0x0800e800` and `0x0800ec00`, two 1 KB pages outside the pinned
+application, loader erase span, bootloader and factory area. D2 uses 68-byte records
+(15 per page), containing sequence, all 24 masks, CRC32, format and a commit word
+written last. Page rotation erases only the page not holding the latest complete
+record. Interrupted writes leave the preceding complete record available.
 
-D1 and the current small Harmony P5 update fit below these pages, including the
-loader's extra erased transport page. Their update paths were checked offline.
-This is not a guarantee for other applications, larger future images, mass erase,
-bootloader migration, debugger recovery, or a different loader. There is no USB
-pattern import/export feature in D1. Keep a written copy of important patterns.
+D2 also reads D1's 36-byte records. On boot, it loads their eight step masks and
+initializes accents/triplets to zero, without a flash write. The first explicit
+D2 save writes format 2 on the other page, keeping the D1 save until the new record
+is committed. **D1 cannot read D2 records.** Later page rotations may erase the old
+D1 record, so downgrading D1 is not a pattern-data rollback. Keep a written copy
+of important patterns; USB pattern import/export is not implemented.
+
+Without any valid record, first use requires an entirely erased page; unidentified
+data is not automatically erased. Flash has finite endurance. Failure simulations
+cover interrupted programming, migration and erasure; physical power-loss behavior
+still needs testing. The known D1/D2 and Harmony P5 application update paths preserve
+these pages in offline loader simulation. Other images, mass erase, migration or
+recovery procedures may not. There is no automatic firmware rollback.
 
 ## Build and install
 
@@ -131,26 +185,20 @@ Obtain the official Cellz V0.0.3.0 file and Zig 0.14.1 separately as described i
 
 ```powershell
 python tools/build_drum.py --base-firmware "vendor-input/NiftyBUNDLE Firmware/Step2 - Firmware/Cellz_V0.0.3.0_220407A.dfu" --zig "C:/tools/zig-0.14.1/zig.exe"
-python tools/cellz_update.py flash --firmware build/drum/Cellz_Drum_D1.UNTESTED.dfu --manifest build/drum/build.json
+python tools/cellz_update.py flash --firmware build/drum/Cellz_Drum_D2.UNTESTED.dfu --manifest build/drum/build.json
 ```
 
-The second command is an offline plan. Add `--execute` for an actual installation
-using the existing Windows/HID setup. Success requires verified staging, the
-whole-image checksum, and the application signature `DRUM0001`; base USB version
-`0030` is preserved. The builder refuses an image whose loader erase span reaches
-pattern storage. The bootloader is not modified.
+The second command is an offline plan. Add `--execute` for installation through
+the existing Windows/HID setup. The updater requires verified staging, whole-image
+checksum and signature `DRUM0002`. Base USB version `0030` is preserved. The builder
+refuses an image whose loader erase span reaches pattern storage; it does not
+modify the bootloader.
 
-Generated DFU/bin/ELF files contain vendor application code and must stay local.
-Do not commit or redistribute them. Only our extension sources, tests and tools
-are published. D1 sources are `cellz_drum.c`, `drum_engine.c/.h`, `drum_store.c/.h`
-and `drum.ld`; `build_drum.py` builds them independently from Harmony.
+Generated DFU/bin/ELF files contain vendor application code. Keep them local and
+never commit or redistribute them. Only our source, tools, tests and documentation
+are published. To return to Harmony, use its separate [build/install guide](harmony.md).
 
-To return to Harmony, use its existing [build/install commands](harmony.md) and
-manifest. The Harmony source and builder are unchanged. Switching applications
-replaces the application; it does not run both at once or provide automatic rollback.
-
-For the first bench trial: verify four output levels and pulse widths, sixteen-pad
-LED scanning with a dense pattern, every pad's physical order and reliable toggling,
-both button mappings, bank inversion, external clock takeover/fallback, swing,
-USB inspection, explicit save, then power-off restoration. Leave the RP2350 ADC
-connections out until their input scaling and the Cellz CV levels are measured.
+For the D2 bench trial, check both CV voltage levels before patching the Bilma,
+Shift edits without unintended selection changes, modifier views, group accents,
+triplet timing (including step 16 → 1), independent simultaneous instruments,
+external clocks/swing, D1 save migration, explicit save and power-off restoration.

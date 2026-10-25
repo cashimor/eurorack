@@ -31,20 +31,19 @@ variation-zero progressions start there and follow the downwards clock paths.
 P5 has also been installed with staging, checksum and startup verification;
 physical confirmation of the corrected top position is pending.
 
-**Drum D1** is a separate experimental application with four 16-step instruments,
-two pattern banks, tempo/swing knobs, external clock takeover and gate-controlled
-bank inversion. Holding both buttons saves all eight patterns to a two-page flash
-journal. Host and compiled ARM simulations cover timing, editing and interrupted
-saves. D1 was installed on the same spare with all 27 staging blocks verified,
-checksum `c503` accepted and a fresh `DRUM0001` status confirmed. Electrical
-behavior and saved-pattern power-cycle restoration await hardware verification.
-See the [Drum manual](docs/drum.md) for the controls and current limits.
+**Drum D2** adds Shift-edited accents on the two CV outputs and three-hit triplets
+spanning adjacent step pairs. Right-button Shift edits accents; left-button Shift
+edits triplets. Shift gestures keep steps enabled and consume the button click.
+Turning a step off clears its accent and breaks its triplet. Two flash journal
+pages save both banks, accents and triplets, with backward loading of D1 patterns.
+D1 was installed and verified on the same spare; D2 is a separate offline candidate
+with hardware verification pending. See the [Drum manual](docs/drum.md).
 
 ## Start here
 
 - [Windows updater and bootloader migration](docs/windows-updater.md)
 - [Harmony controls, building and installation](docs/harmony.md)
-- [Separate Drum D1 sequencer: controls, pattern saving and building](docs/drum.md)
+- [Separate Drum sequencer: controls, pattern saving and building](docs/drum.md)
 - [Validation and supported scope](docs/validation.md)
 - [Responsibility and redistribution notice](NOTICE.md)
 

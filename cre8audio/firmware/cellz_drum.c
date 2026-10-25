@@ -1,6 +1,6 @@
 /* Maarten Hofman (cashimor) is not responsible for damage, loss, or malfunction
  * of Cre8audio gear or other equipment resulting from use. Use at your own risk.
- * Cellz Drum D1 hardware adapter, pinned official V0.0.3.0 only. */
+ * Cellz Drum D2 hardware adapter, pinned official V0.0.3.0 only. */
 #include "drum_engine.h"
 #include "drum_store.h"
 #define R32(a) (*(volatile uint32_t *)(a))
@@ -9,6 +9,7 @@
 #define READY 0x314d5244u
 #define PAGE0 0x0800e800u
 #define PAGE1 0x0800ec00u
+#define CV_NORMAL 1352u /* Nominal ~3.3 V; bench verification still required. */
 #define CV_HIGH 2048u /* Midscale. Nominal ~5 V inferred from pitch scaling;
                        * measure the actual jack voltage before drum patching. */
 typedef struct {
@@ -20,6 +21,7 @@ typedef struct {
 } Runtime;
 #define D ((Runtime *)0x20001200u)
 _Static_assert(sizeof(Runtime)<=1024,"Drum runtime exceeds reserved RAM");
+_Static_assert(__builtin_offsetof(Drum,last_ms)==DRUM_PATTERN_WORDS*2u,"Persistent masks must remain contiguous");
 
 static uint32_t lock(void) {
     uint32_t mask;
@@ -29,10 +31,11 @@ static uint32_t lock(void) {
 static void unlock(uint32_t mask) { __asm__ volatile("msr primask, %0"::"r"(mask):"memory"); }
 
 static void outputs(uint32_t mask) {
+    uint32_t accents=D->engine.accent_outputs;
     uint32_t high=((mask&1u)?8u:0u)|((mask&2u)?4u:0u);
     R32(0x40010810u)=high|((12u&~high)<<16);
-    R32(0x40007408u)=(mask&4u)?CV_HIGH:0u;
-    R32(0x40007414u)=(mask&8u)?CV_HIGH:0u;
+    R32(0x40007408u)=(mask&4u)?((accents&4u)?CV_HIGH:CV_NORMAL):0u;
+    R32(0x40007414u)=(mask&8u)?((accents&8u)?CV_HIGH:CV_NORMAL):0u;
 }
 static void blank_leds(void) { R32(0x40010c10u)=0xf000u; }
 static void scan_leds(void) {
@@ -47,9 +50,9 @@ void drum_systick(void) {
     ((void (*)(void))0x08006d9du)(); /* Preserve USB/main-loop countdowns. */
     if(D->ready!=READY) return;
     uint32_t now=++D->milliseconds;
-    if(D->engine.outputs && (int32_t)(now-D->engine.pulse_until_ms)>=0) {
-        D->engine.outputs=0; outputs(0);
-    }
+    uint32_t previous=D->engine.outputs;
+    drum_expire(&D->engine,now);
+    if(previous!=D->engine.outputs) outputs(D->engine.outputs);
     scan_leds();
 }
 void drum_left_irq(void) {
@@ -80,9 +83,9 @@ void drum_save(void) {
                               &D->engine.patterns[0][0],&io);
     ((void (*)(void))0x08004bddu)();
     if(result) {
-        uint16_t verified[8];
+        uint16_t verified[DRUM_PATTERN_WORDS];
         result=drum_store_load((const uint8_t *)PAGE0,(const uint8_t *)PAGE1,verified,&D->sequence);
-        if(result) for(uint32_t i=0;i<8;++i) if(verified[i]!=((uint16_t *)D->engine.patterns)[i]) result=0;
+        if(result) for(uint32_t i=0;i<DRUM_PATTERN_WORDS;++i) if(verified[i]!=((uint16_t *)D->engine.patterns)[i]) result=0;
     }
     D->pending_clock=0;
     drum_after_save(&D->engine,D->milliseconds,(uint32_t)result);
@@ -106,7 +109,7 @@ void drum_boot(void) {
     R16(0x40000820u)=0x1111;
     for(uint32_t row=0;row<4;++row) R16(0x40000834u+row*4u)=0;
     R16(0x40000814u)=1; R16(0x40000800u)=1;
-    static const uint8_t signature[8]={'D','R','U','M','0','0','0','1'};
+    static const uint8_t signature[8]={'D','R','U','M','0','0','0','2'};
     for(uint32_t i=0;i<8;++i) R8(0x20000134u+i)=signature[i];
     D->ready=READY;
 }
