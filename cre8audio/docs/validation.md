@@ -82,13 +82,35 @@ These were models of selected paths. They did not model analog noise, touch
 electronics, real interrupt timing, oscillator tuning, every storage state, all
 USB host/controller behavior, or power loss during a write.
 
+## Drum D3 offline validation
+
+D3 was built offline on 2026-10-25; it has not been installed on hardware.
+The generated image reports `DRUM0003`. Its 28 KB normalized image plus the
+loader's extra erased page ends below the unchanged pattern journal at
+`0x0800e800`. The 29 transmitted blocks include the loader transport block.
+
+62 native sequencer/storage tests cover 16/32-step wrapping, four edit pages,
+right-gate bank inversion, per-page LEDs, hidden step preservation, the relative
+knob gesture, pickup, touch/Shift/save interactions, cross-page accents/triplets,
+ordinary D2 behavior, and interrupted writes after every halfword. The journal
+tests also cover migration from both old formats, rollover, CRC/commit rejection,
+invalid saved lengths and sequence-number wraparound.
+
+The private compiled ARM suite also runs the sequencer scenarios through the
+actual extension and checks the hardware adapter's 32-step save/restore, boot
+status, independent output levels, LED scan, IRQ hooks and absence of ordinary
+flash writes. Emulating the original loader with D3, D2 and Harmony P5 confirms
+the pattern journal and factory region survive those application updates.
+These checks cannot establish touch feel, real knob direction, electrical levels,
+physical clock timing or behavior during actual power loss.
+
 ## Public tests and CI
 
 Run `python -m unittest discover -s tests -v` from this directory. Fixtures are
 synthetic and contain no vendor code. Tests cover container round trips,
 manifest matching, packet framing, RAM verification, commit/error handling,
 source pinning and CLI help. Native C tests compile only our pure note generator
-and selector functions plus the pure tap/clock engine, checking all layouts,
+and selector functions plus the pure tap/clock and drum engines and pattern journal, checking all layouts,
 boundary noise and clock scenarios. They run when a
 Unix C compiler is present and skip on Windows. A CI matrix covers Windows and
 Ubuntu with Python 3.11 and 3.12.
@@ -96,7 +118,8 @@ Ubuntu with Python 3.11 and 3.12.
 ## Scope
 
 Only the inspected legacy revision `001b`, known migration installer, official
-Cellz V0.0.3.0 file and locally built Harmony P1 through P5 are supported. Chipz/NiftyCASE
+Cellz V0.0.3.0 file and locally built Harmony P1 through P5 and Drum D1 through D3 are supported
+by the application updater (D3 remains an offline-tested prototype). Chipz/NiftyCASE
 and other migration versions are deliberately outside the public updater's scope.
 No tool reads back the complete flash, establishes debug access, changes drivers,
 performs automatic rollback, or guarantees recovery from a failed bootloader write.

@@ -1,10 +1,11 @@
-# Cellz Drum D2
+# Cellz Drum D3
 
 **Maarten Hofman (cashimor) is not responsible for damage, loss, or malfunction of
 Cre8audio gear or other equipment resulting from use of this project. Use it at
 your own risk. There is no warranty or manufacturer endorsement.**
 
-Drum is a separate four-instrument, 16-step sequencer with two pattern banks.
+Drum is a separate four-instrument sequencer with two pattern banks, each with
+16 or 32 steps. Both banks and all instruments share the playback length.
 It sends pulses to an external drum module; it does not generate audio.
 Harmony remains a separate application with its own unchanged source and builder.
 
@@ -12,9 +13,10 @@ D1 was installed on one modified spare Cellz on 2026-10-24, with all staging blo
 verified, checksum accepted, and a fresh `DRUM0001` status. **D2 was installed
 on that spare on 2026-10-25:** all 28 staging blocks were verified, checksum `b6ef`
 was accepted, and a fresh USB read confirmed `DRUM0002` with playback advancing.
-It adds Shift accents, triplet pairs and storage migration. Timing, controls, LED
-visibility, actual output voltages, saved-pattern migration and power-off
-restoration still need D2 hardware verification.
+D2 added Shift accents, triplet pairs and storage migration. D3 adds selectable
+16/32-step playback and four edit pages. **D3 has been built and tested offline;
+it has not been flashed.** Physical gesture direction, LED visibility, clock timing,
+output voltages and power-off restoration need hardware verification.
 
 ## Controls
 
@@ -23,11 +25,12 @@ restoration still need D2 hardware verification.
 | Former harmony knob | Internal tempo, 40–240 BPM, four sixteenth steps per beat |
 | Former variation knob | Swing, 50% straight to 75% of a two-step pair |
 | Left Tune button, short click | Cycle edited instrument 1 → 2 → 3 → 4 → 1 |
-| Right Tune button, short click | Toggle selected pattern bank A/B |
+| Right Tune button, short click | 16 steps: A1 → B1; 32 steps: A1 → A2 → B1 → B2 → A1 |
+| Hold right button + move swing knob appreciably | Up: 32 steps; down: 16 steps |
 | Pad without a Shift button | Toggle that step |
 | Hold right button + touch a pad | Toggle its accent; CV instruments 3 and 4 only |
 | Hold left button + touch one pad | Toggle a triplet covering this step and the next |
-| Hold both buttons 1.5 seconds, without pad edits | Save both banks, all four instruments and their modifiers |
+| Hold both buttons 1.5 seconds, without pad edits | Save length, both banks, all four instruments and their modifiers |
 | Left gate input | External sixteenth-note clock; overrides the internal clock |
 | Right gate input | While high, invert the bank selected with the right button |
 
@@ -40,14 +43,55 @@ A long single-button press without a pad has no selection action.
 
 Ordinary multi-pad touches still toggle every touched step, allowing hi-hat
 painting. A held pad does not toggle again when the instrument or bank changes.
-There is no start/stop or erase-all gesture in D2; internal playback starts at boot.
+There is no start/stop or erase-all gesture in D3; internal playback starts at boot.
+
+## Length and edit pages
+
+Without a save, playback starts at 16 steps. To change it, hold the **right Tune
+button**, then move the swing knob upward by about one eighth of its full travel
+for **32 steps**, or downward by the same amount for **16 steps**. One top LED
+confirms 16; two top LEDs confirm 32 while the button remains held. Release the
+button afterward. The gesture consumes the click, so release does not select
+another page. Even selecting the current length consumes the click.
+
+This is a relative movement: start with enough knob travel in the desired
+direction. Only one length selection is accepted per hold. Pads are ignored
+after a length gesture until release. Touching a pad before or during the movement
+instead reserves the hold for accent editing; it cannot also change length.
+Adding the second button after a length gesture cannot accidentally save.
+
+Swing stays at its previous value while the right button is held. After release,
+it stays there until the knob reaches or crosses that previous position. Then
+ordinary swing control resumes. This pickup also applies after accent edits or
+page clicks; if the knob has not moved, it releases immediately.
+
+Each bank has two 16-pad pages. A1 and B1 edit steps 1–16; A2 and B2 edit steps
+17–32. In 32-step mode, short right-button clicks cycle **A1 → A2 → B1 → B2**.
+The displayed page stays where you selected it while playback runs through both
+halves. The playhead blink appears only when playback is on that page. The right
+gate still inverts A/B, keeping the same half and playback position: A2 becomes
+B2 while the gate is high, for example. USB inspection reports both selected
+and audible/editable page names.
+
+Changing length returns the editor to page 1 of the selected bank, clears pending
+hits and pulses, and restarts the sequence from step 1 on the next clock step.
+It preserves the tempo, swing and all patterns. Steps 17–32, accents and triplets
+remain stored when playing 16 steps; selecting 32 restores access to them.
+Fresh defaults and migrated D1/D2 saves have blank second halves, so expanding
+does not automatically repeat the first bar. Both pages play all four instruments.
+
+Triplets use the next step at the current length: step 16 pairs with step 1 in
+16-step mode, and with step 17 in 32-step mode; step 32 pairs with step 1.
+Stored starts are retained on a length change. If the newly adjacent partner is
+disabled, the start plays as a single until that partner is enabled. Check pairs
+at these boundaries when switching lengths. Only 16 and 32 are selectable in D3.
 
 ## Accents
 
 Accents apply only to the **two original CV output jacks**, instruments 3 and 4.
 Their normal pulse level uses DAC code 1352 (nominal approximately 3.3 V); an
 accent uses code 2048 (nominal approximately 5 V). LOW is code 0. The original
-pitch scaling provides the voltage estimate; **D2 jack voltages have not been
+pitch scaling provides the voltage estimate; **D3 jack voltages have not been
 measured**. Verify levels before patching voltage-limited inputs.
 
 Hold the right button to view accented pads only. Touch a pad to toggle its accent;
@@ -71,8 +115,8 @@ triggers at either pulse height.
 Hold the left button to view triplet pairs only. Touch the **first** pad of a pair:
 this step and the next become enabled and play three evenly spaced hits in the
 same time normally occupied by two steps. Touch the first pad again with left
-Shift to return both pads to normal single steps. The final step pairs with step 1
-across the bar boundary. A new overlapping pair replaces the conflicting triplet;
+Shift to return both pads to normal single steps. The final step of the selected
+length pairs with step 1 across the bar boundary. A new overlapping pair replaces the conflicting triplet;
 other enabled steps remain enabled.
 
 Triplets can be enabled independently on all four instruments and in both banks.
@@ -96,18 +140,20 @@ single until its first pad has been reached.
 ## Pads, LEDs, banks and outputs
 
 Step 1 is the physical top (hardware pad 15). Steps follow descending hardware
-pad numbers through all 16 positions and wrap; this is a linear sequence rather
-than Harmony's diagonal movement paths. Normal view lights enabled steps. An
+pad numbers through all 16 positions on each page, then the next page and wrap.
+This is a linear sequence rather than Harmony's diagonal movement paths. Normal view lights enabled steps. An
 enabled playhead goes dark for 60 ms; Shift views show modifiers without that
 playhead blink. The display scans one pad per millisecond (62.5 Hz full refresh),
 with one LED electrically active at a time to preserve the original peak load.
 Brightness, flicker, camera visibility and physical ordering need bench checks.
 
 All four instruments play while one is edited. The audible/editable bank is
-`selected_bank XOR right_gate_high`. Select A, click to B, raise the gate to hear A,
-click to hear B, then lower the gate to hear A. The view changes immediately;
+`selected_bank XOR right_gate_high`. In 16-step mode, select A, click to B, raise
+the gate to hear A, click to hear B, then lower the gate to hear A. In 32-step
+mode it takes two clicks to select the other bank. The view changes immediately;
 subsequent hits use that bank, without resetting the playhead. The current 5 ms
-pulse can finish normally. Selection starts at instrument 1 and bank A.
+pulse can finish normally. Selection starts at instrument 1 and page A1;
+a saved length is restored.
 
 | Instrument | Output | Suggested factory sound | Pulse |
 | --- | --- | --- | --- |
@@ -144,10 +190,11 @@ feed a straight external clock for this mode. A new edge cancels an overdue dela
 step, avoiding a burst. Long main-loop stalls advance at most one base step per
 update. Each output has an independent pulse-expiry timer for triplet playback.
 
-## Saving, D1 migration and power loss
+## Saving, D1/D2 migration and power loss
 
 **Hold both buttons for 1.5 seconds with no pad edits to explicitly save everything:**
-16-step masks, accent masks and triplet starts for both banks and all four tracks.
+all 32-step masks, accent masks, triplet starts and playback length for both banks
+and all four tracks, including the hidden second halves in 16-step mode.
 Release both buttons afterward. Ordinary edits do not write flash. Unsaved edits
 are lost at power-off. Saved patterns load independently of the power-off duration;
 instrument selection, bank selection, playhead and knob positions are temporary.
@@ -161,22 +208,24 @@ python tools/cellz_update.py inspect
 ```
 
 Storage remains at `0x0800e800` and `0x0800ec00`, two 1 KB pages outside the pinned
-application, loader erase span, bootloader and factory area. D2 uses 68-byte records
-(15 per page), containing sequence, all 24 masks, CRC32, format and a commit word
-written last. Page rotation erases only the page not holding the latest complete
-record. Interrupted writes leave the preceding complete record available.
+application, loader erase span, bootloader and factory area. D3 uses 120-byte
+records (eight per page), containing sequence, 24 32-bit masks, length, CRC32,
+format and a commit word written last. Page rotation erases only the page not
+holding the latest complete record. Interrupted writes leave the preceding
+complete record available.
 
-D2 also reads D1's 36-byte records. On boot, it loads their eight step masks and
-initializes accents/triplets to zero, without a flash write. The first explicit
-D2 save writes format 2 on the other page, keeping the D1 save until the new record
-is committed. **D1 cannot read D2 records.** Later page rotations may erase the old
-D1 record, so downgrading D1 is not a pattern-data rollback. Keep a written copy
-of important patterns; USB pattern import/export is not implemented.
+D3 reads D1's 36-byte and D2's 68-byte records. Boot widens their step/modifier
+masks, initializes missing modifiers and second halves to zero, and sets length
+16, without a flash write. The first explicit D3 save writes format 3 on the other
+page, retaining the old save until the new record is committed. **D1 and D2 cannot
+read D3 records.** Later rotations may erase the old record; downgrading firmware
+does not roll back pattern data. Keep a written copy of important patterns; USB
+pattern import/export is not implemented.
 
 Without any valid record, first use requires an entirely erased page; unidentified
 data is not automatically erased. Flash has finite endurance. Failure simulations
 cover interrupted programming, migration and erasure; physical power-loss behavior
-still needs testing. The known D1/D2 and Harmony P5 application update paths preserve
+still needs testing. The known D2/D3 and Harmony P5 application update paths preserve
 these pages in offline loader simulation. Other images, mass erase, migration or
 recovery procedures may not. There is no automatic firmware rollback.
 
@@ -187,12 +236,12 @@ Obtain the official Cellz V0.0.3.0 file and Zig 0.14.1 separately as described i
 
 ```powershell
 python tools/build_drum.py --base-firmware "vendor-input/NiftyBUNDLE Firmware/Step2 - Firmware/Cellz_V0.0.3.0_220407A.dfu" --zig "C:/tools/zig-0.14.1/zig.exe"
-python tools/cellz_update.py flash --firmware build/drum/Cellz_Drum_D2.UNTESTED.dfu --manifest build/drum/build.json
+python tools/cellz_update.py flash --firmware build/drum/Cellz_Drum_D3.UNTESTED.dfu --manifest build/drum/build.json
 ```
 
 The second command is an offline plan. Add `--execute` for installation through
 the existing Windows/HID setup. The updater requires verified staging, whole-image
-checksum and signature `DRUM0002`. Base USB version `0030` is preserved. The builder
+checksum and signature `DRUM0003`. Base USB version `0030` is preserved. The builder
 refuses an image whose loader erase span reaches pattern storage; it does not
 modify the bootloader.
 
@@ -200,7 +249,8 @@ Generated DFU/bin/ELF files contain vendor application code. Keep them local and
 never commit or redistribute them. Only our source, tools, tests and documentation
 are published. To return to Harmony, use its separate [build/install guide](harmony.md).
 
-For the D2 bench trial, check both CV voltage levels before patching the Bilma,
-Shift edits without unintended selection changes, modifier views, group accents,
-triplet timing (including step 16 → 1), independent simultaneous instruments,
-external clocks/swing, D1 save migration, explicit save and power-off restoration.
+For the D3 bench trial, check length gestures in both directions, swing pickup,
+the four page cycle, right-gate inversion on each half, 32-step playback and
+preserved hidden steps. Also check CV voltage levels before patching the Bilma,
+Shift edits, modifier views, cross-page/wrapping triplets, simultaneous tracks,
+external clocks/swing, D2 save migration, explicit save and power-off restoration.

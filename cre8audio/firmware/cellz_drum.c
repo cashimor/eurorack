@@ -1,6 +1,6 @@
 /* Maarten Hofman (cashimor) is not responsible for damage, loss, or malfunction
  * of Cre8audio gear or other equipment resulting from use. Use at your own risk.
- * Cellz Drum D2 hardware adapter, pinned official V0.0.3.0 only. */
+ * Cellz Drum D3 hardware adapter, pinned official V0.0.3.0 only. */
 #include "drum_engine.h"
 #include "drum_store.h"
 #define R32(a) (*(volatile uint32_t *)(a))
@@ -21,7 +21,7 @@ typedef struct {
 } Runtime;
 #define D ((Runtime *)0x20001200u)
 _Static_assert(sizeof(Runtime)<=1024,"Drum runtime exceeds reserved RAM");
-_Static_assert(__builtin_offsetof(Drum,last_ms)==DRUM_PATTERN_WORDS*2u,"Persistent masks must remain contiguous");
+_Static_assert(__builtin_offsetof(Drum,last_ms)==DRUM_PATTERN_WORDS*4u,"Persistent masks must remain contiguous");
 
 static uint32_t lock(void) {
     uint32_t mask;
@@ -83,9 +83,9 @@ void drum_save(void) {
                               &D->engine.patterns[0][0],&io);
     ((void (*)(void))0x08004bddu)();
     if(result) {
-        uint16_t verified[DRUM_PATTERN_WORDS];
+        uint32_t verified[DRUM_PATTERN_WORDS];
         result=drum_store_load((const uint8_t *)PAGE0,(const uint8_t *)PAGE1,verified,&D->sequence);
-        if(result) for(uint32_t i=0;i<DRUM_PATTERN_WORDS;++i) if(verified[i]!=((uint16_t *)D->engine.patterns)[i]) result=0;
+        if(result) for(uint32_t i=0;i<DRUM_PATTERN_WORDS;++i) if(verified[i]!=((uint32_t *)D->engine.patterns)[i]) result=0;
     }
     D->pending_clock=0;
     drum_after_save(&D->engine,D->milliseconds,(uint32_t)result);
@@ -109,7 +109,11 @@ void drum_boot(void) {
     R16(0x40000820u)=0x1111;
     for(uint32_t row=0;row<4;++row) R16(0x40000834u+row*4u)=0;
     R16(0x40000814u)=1; R16(0x40000800u)=1;
-    static const uint8_t signature[8]={'D','R','U','M','0','0','0','2'};
+    D->engine.step=(uint8_t)(D->engine.length-1u);
+    R8(0x2000013cu)=0;R8(0x2000013du)=0;R8(0x2000013eu)=0;R8(0x2000013fu)=255;
+    R8(0x20000140u)=0;R8(0x20000141u)=0;R8(0x20000142u)=D->engine.saved_status;
+    R8(0x20000143u)=D->engine.length;R8(0x20000144u)=0;R8(0x20000145u)=0;
+    static const uint8_t signature[8]={'D','R','U','M','0','0','0','3'};
     for(uint32_t i=0;i<8;++i) R8(0x20000134u+i)=signature[i];
     D->ready=READY;
 }
@@ -133,6 +137,9 @@ void drum_tick(void) {
     R8(0x20000140u)=D->engine.external;
     R8(0x20000141u)=D->engine.dirty;
     R8(0x20000142u)=D->engine.saved_status;
+    R8(0x20000143u)=D->engine.length;
+    R8(0x20000144u)=D->engine.edit_page;
+    R8(0x20000145u)=D->engine.swing_pickup;
     unlock(mask);
     if(D->engine.save_requested) drum_save();
 }

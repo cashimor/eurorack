@@ -23,3 +23,20 @@ class DrumStatusTests(unittest.TestCase):
     def test_d2_uses_the_same_readonly_status_layout(self):
         r=self.report();r[16:24]=b'DRUM0002'
         self.assertEqual(drum_status(r)['instrument'],4)
+
+    def test_d3_reports_length_page_gate_inversion_and_swing_pickup(self):
+        r=self.report();r[16:24]=b'DRUM0003';r[27]=31;r[31:34]=bytes([32,1,1])
+        s=drum_status(r)
+        self.assertEqual((s['length_steps'],s['step']),(32,32))
+        self.assertEqual((s['selected_page'],s['playing_and_editing_page']),('A2','B2'))
+        self.assertTrue(s['swing_pickup'])
+
+    def test_d3_rejects_inconsistent_length_page_and_step(self):
+        for length,page,step,pickup in ((24,0,0,0),(16,1,0,0),(32,2,0,0),(16,0,16,0),(32,0,32,0),(32,0,0,2)):
+            r=self.report();r[16:24]=b'DRUM0003';r[27]=step;r[31:34]=bytes([length,page,pickup])
+            with self.assertRaises(ValueError): drum_status(r)
+
+    def test_older_signatures_still_reject_step_32(self):
+        for signature in (b'DRUM0001',b'DRUM0002'):
+            r=self.report();r[16:24]=signature;r[27]=31
+            with self.assertRaises(ValueError): drum_status(r)
